@@ -242,6 +242,123 @@ class _IncubatorScreenState extends State<IncubatorScreen>
     );
   }
 
+  // ── 세포 폐기 확인 다이얼로그 ────────────────────────────────
+  void _showDiscardDialog(BuildContext context) {
+    final expSession = context.read<ExperimentSession>();
+    final appState = context.read<AppState>();
+    // 현재 ExperimentSession과 연결된 CultureSession 찾기
+    final cultureSession = appState.activeSessions
+        .where((s) => s.cellTypeId == expSession.cellTypeId)
+        .firstOrNull;
+    final cellName = cultureSession?.cellTypeName ?? '세포';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A0808),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+              color: Colors.redAccent.withValues(alpha: 0.6), width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever, color: Colors.redAccent, size: 22),
+            SizedBox(width: 8),
+            Text('세포 폐기',
+                style: TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 13, height: 1.5),
+                children: [
+                  TextSpan(
+                    text: cellName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const TextSpan(
+                      text: ' 배양을 종료하고\n세포를 폐기합니까?'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: Colors.redAccent.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      color: Colors.amber, size: 14),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '이 작업은 되돌릴 수 없습니다.',
+                      style: TextStyle(
+                          color: Colors.amber,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.delete_forever, size: 16),
+            label: const Text('폐기 확인',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              // CultureSession 삭제
+              if (cultureSession != null) {
+                await appState.removeCultureSession(cultureSession.id);
+              }
+              // ExperimentSession 초기화
+              expSession.reset();
+              if (ctx.mounted) Navigator.pop(ctx);
+              // 홈으로 이동
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => MainScreen()),
+                  (route) => false,
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── 계대배양 다이얼로그 (90% confluence) ───────────────────
   void _showSubcultureDialog() {
     if (!mounted) return;
@@ -814,6 +931,22 @@ class _IncubatorScreenState extends State<IncubatorScreen>
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             onPressed: _showSubcultureDialog,
+          ),
+        ),
+        const SizedBox(height: 10),
+        // 세포 폐기 버튼
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.7)),
+              foregroundColor: Colors.redAccent,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+            ),
+            icon: const Icon(Icons.delete_forever_outlined, size: 18),
+            label: const Text('세포 폐기',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            onPressed: () => _showDiscardDialog(context),
           ),
         ),
         const SizedBox(height: 10),
