@@ -486,6 +486,26 @@ class _IncubatorScreenState extends State<IncubatorScreen>
           session.vialRemainingUL = result.remainingVolumeUL;
           session.vialInitialCells =
               result.cellsPerML * 1e6 * (result.remainingVolumeUL / 1000);
+
+          // ★ 기존 CultureSession 제거 (진행 중 배양 목록에서 삭제)
+          // incubatorStartTime을 null로 설정하기 전에 먼저 세션을 찾아 제거
+          final currentStartTime = session.incubatorStartTime;
+          final cultureSession = appState.activeSessions
+              .where((s) =>
+                  s.cellTypeId == session.cellTypeId &&
+                  currentStartTime != null &&
+                  s.startTime == currentStartTime)
+              .firstOrNull ??
+              appState.activeSessions
+                  .where((s) => s.cellTypeId == session.cellTypeId)
+                  .firstOrNull;
+          if (cultureSession != null) {
+            appState.removeCultureSession(cultureSession.id);
+          }
+
+          // ★ 다음 P번호 설정 (P1 → P2 → P3 ...)
+          session.passageNumber = (cultureSession?.passageNumber ?? 1) + 1;
+
           session.isInIncubator = false;
           session.incubatorStartTime = null;
 

@@ -517,7 +517,7 @@ class _CalendarSessionTile extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              session.cellTypeName,
+              'P${session.passageNumber} · ${session.cellTypeName}',
               style: const TextStyle(
                   color: Colors.white70, fontSize: 12),
             ),
@@ -587,6 +587,24 @@ class _ActiveSessionCard extends StatelessWidget {
                     '인큐베이터 배양 중',
                     style: TextStyle(
                         color: Colors.tealAccent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.amberAccent.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                        color: Colors.amberAccent.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    'P${session.passageNumber}',
+                    style: const TextStyle(
+                        color: Colors.amberAccent,
                         fontSize: 10,
                         fontWeight: FontWeight.bold),
                   ),
