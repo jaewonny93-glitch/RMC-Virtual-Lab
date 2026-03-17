@@ -36,7 +36,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web
-        run: flutter build web --release --base-href /rmc-virtual-lab/
+        run: flutter build web --release --base-href /RMC-Virtual-Lab/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

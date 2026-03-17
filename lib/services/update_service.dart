@@ -11,9 +11,9 @@ import 'package:url_launcher/url_launcher.dart';
 /// - 앱 플랫폼: GitHub Releases 다운로드 링크 제공
 class UpdateService extends ChangeNotifier {
   // ★ 이 값들을 GitHub 저장소에 맞게 설정하세요
-  static const String githubOwner = 'RMC-Lab';
-  static const String githubRepo = 'rmc-virtual-lab';
-  static const String githubPagesUrl = 'https://rmc-lab.github.io/rmc-virtual-lab/';
+  static const String githubOwner = 'jaewonny93-glitch';
+  static const String githubRepo = 'RMC-Virtual-Lab';
+  static const String githubPagesUrl = 'https://jaewonny93-glitch.github.io/RMC-Virtual-Lab/';
 
   String? _latestVersion;
   String? _currentVersion;
