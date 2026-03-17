@@ -6,6 +6,7 @@ import '../../models/cell_model.dart';
 import '../../models/lab_model.dart';
 import '../../models/user_model.dart';
 import '../main_screen.dart';
+import 'clean_bench_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  IncubatorScreen  (배양 모니터링 + 교체 + 계대배양 전체 흐름)
@@ -244,27 +245,46 @@ class _IncubatorScreenState extends State<IncubatorScreen>
   // ── 계대배양 다이얼로그 (90% confluence) ───────────────────
   void _showSubcultureDialog() {
     if (!mounted) return;
+    final session = context.read<ExperimentSession>();
+    final confluence = _getConfluence(session);
+    final cell = session.cellTypeId != null
+        ? CellDatabase.findById(session.cellTypeId!)
+        : null;
+
+    // 성장곡선 기반 현재 총 세포 수 추정
+    final simulatedHours = _elapsed.inSeconds.toDouble();
+    final doublings = cell != null
+        ? simulatedHours / cell.doublingTimeHours
+        : 0.0;
+    final seededCells =
+        session.wells.fold(0.0, (sum, w) => sum + w.cellCount);
+    final initialCells = seededCells > 0 ? seededCells : 500000.0;
+    final estimatedTotalCells =
+        initialCells * pow(2, doublings.clamp(0, 20));
+
     showDialog(
       context: context,
       builder: (ctx) => SubcultureDialog(
         onComplete: (result) {
           Navigator.pop(ctx);
-          _showCentrifugeDialog(result);
+          _showCentrifugeDialog(result, confluence, estimatedTotalCells);
         },
       ),
     );
   }
 
   // ── 원심분리 다이얼로그 ─────────────────────────────────────
-  void _showCentrifugeDialog(SubcultureResult subcultureResult) {
+  void _showCentrifugeDialog(SubcultureResult subcultureResult,
+      double confluence, double estimatedTotalCells) {
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => CentrifugeDialog(
         subcultureResult: subcultureResult,
-        onComplete: (resuspensionVolume) {
+        onComplete: (resuspensionVolume, rpm, xg, duration, temp) {
           Navigator.pop(ctx);
-          _showCellCountDialog(resuspensionVolume, subcultureResult);
+          _showCellCountDialog(resuspensionVolume, subcultureResult,
+              confluence, estimatedTotalCells, rpm, xg, duration, temp);
         },
       ),
     );
@@ -272,26 +292,95 @@ class _IncubatorScreenState extends State<IncubatorScreen>
 
   // ── 세포 계수 다이얼로그 ────────────────────────────────────
   void _showCellCountDialog(
-      double resuspensionVolume, SubcultureResult subcultureResult) {
+      double resuspensionVolume,
+      SubcultureResult subcultureResult,
+      double confluence,
+      double estimatedTotalCells,
+      String rpm,
+      String xg,
+      String duration,
+      String temp) {
     if (!mounted) return;
+    final session = context.read<ExperimentSession>();
+    final cell = session.cellTypeId != null
+        ? CellDatabase.findById(session.cellTypeId!)
+        : null;
+
+    // 성장곡선 기반 예측 세포 농도 계산
+    // 총 세포를 재현탁 볼륨으로 나눔
+    final predictedCellsPerML =
+        estimatedTotalCells / (resuspensionVolume / 1000.0);
+    final predictedViability =
+        session.isMediumCorrect ? 92.0 + (Random().nextDouble() * 5) : 55.0;
+
     showDialog(
       context: context,
       builder: (ctx) => CellCountDialog(
         resuspensionVolumeUL: resuspensionVolume,
-        cellName:
-            CellDatabase.findById(context.read<ExperimentSession>().cellTypeId ?? '')
-                    ?.name ??
-                'Unknown',
+        cellName: cell?.name ?? 'Unknown',
+        predictedCellsPerML: predictedCellsPerML,
+        predictedViability: predictedViability,
         onComplete: (result) {
           Navigator.pop(ctx);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  '✅ 세포계수 완료: ${result.cellsPerML.toStringAsFixed(2)} × 10⁶ cells/mL\n'
-                  '잔여액 ${(result.remainingVolumeUL / 1000).toStringAsFixed(3)} mL로 계속 진행'),
-              backgroundColor: Colors.teal,
-              duration: const Duration(seconds: 4),
+          // 세션에 모든 결과 저장
+          session.lastPassageConfluence = confluence;
+          session.lastPassageTotalCells = estimatedTotalCells;
+          session.lastPassageReagent = subcultureResult.reagent;
+          session.lastCentrifugeRpm = rpm;
+          session.lastCentrifugeXg = xg;
+          session.lastCentrifugeDuration = duration;
+          session.lastCentrifugeTemp = temp;
+          session.lastCellCountCellsPerML = result.cellsPerML;
+          session.lastCellCountViability = result.viability;
+          session.lastCellCountRemainingUL = result.remainingVolumeUL;
+
+          // 히스토리 업데이트 (마지막 레코드에 계대배양 정보 추가)
+          final appState = context.read<AppState>();
+          if (appState.history.isNotEmpty) {
+            final old = appState.history.first;
+            final updated = ExperimentRecord(
+              id: old.id,
+              cellTypeId: old.cellTypeId,
+              cellTypeName: old.cellTypeName,
+              dishTypeId: old.dishTypeId,
+              dishTypeName: old.dishTypeName,
+              medium: old.medium,
+              mediumCorrect: old.mediumCorrect,
+              startTime: old.startTime,
+              endTime: DateTime.now(),
+              wells: old.wells,
+              savedToData: old.savedToData,
+              deepFreezerTime: session.deepFreezerTime,
+              subcultureConfluence: confluence,
+              subcultureTotalCells: estimatedTotalCells,
+              subcultureReagent: subcultureResult.reagent,
+              centrifugeRpm: rpm,
+              centrifugeXg: xg,
+              centrifugeDuration: duration,
+              centrifugeTemp: temp,
+              cellCountCellsPerML: result.cellsPerML,
+              cellCountViability: result.viability,
+              cellCountRemainingUL: result.remainingVolumeUL,
+            );
+            appState.updateHistoryRecord(updated);
+          }
+
+          // CleanBench로 이동 (잔여볼륨 + 예측 세포 농도 전달)
+          session.vialRemainingUL = result.remainingVolumeUL;
+          session.vialInitialCells =
+              result.cellsPerML * 1e6 * (result.remainingVolumeUL / 1000);
+          session.isInIncubator = false;
+          session.incubatorStartTime = null;
+
+          Navigator.pushAndRemoveUntil(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => const _PassageCleanBenchScreen(),
+              transitionsBuilder: (_, anim, __, child) =>
+                  FadeTransition(opacity: anim, child: child),
+              transitionDuration: const Duration(milliseconds: 800),
             ),
+            (route) => false,
           );
         },
       ),
@@ -299,6 +388,8 @@ class _IncubatorScreenState extends State<IncubatorScreen>
   }
 
   // ── 합류도 계산 ────────────────────────────────────────────
+  // dish 면적과 세포 크기(doublingTime)를 기반으로 최대 수용 세포 수를 계산하고,
+  // logistic curve 로 90%/95%+ 합류도를 판별합니다.
   double _getConfluence(ExperimentSession session) {
     if (session.incubatorStartTime == null) return 0;
     final cell = session.cellTypeId != null
@@ -306,13 +397,49 @@ class _IncubatorScreenState extends State<IncubatorScreen>
         : null;
     if (cell == null) return 0;
 
-    // 시뮬레이션: 1초 = 1시간 배양
+    // 시뮬레이션: 1초 real time = 1시간 배양
     final simulatedHours = _elapsed.inSeconds.toDouble();
     final doublings = simulatedHours / cell.doublingTimeHours;
-    // 로지스틱 성장 곡선으로 합류도 계산
-    final confluence =
-        100.0 / (1 + exp(-0.5 * (doublings - 4)));
-    return confluence.clamp(0, 100);
+
+    // dish 면적 파싱: "25 cm²" → 25.0 (well-plate: "3.8 cm²/well" → per well)
+    final dish = session.dishTypeId != null
+        ? DishDatabase.findById(session.dishTypeId!)
+        : null;
+    final surfaceArea = _parseSurfaceAreaCm2(
+        dish?.surfaceAreaCm2 ?? '25 cm²', dish?.wellCount ?? 1);
+
+    // 세포 크기 기반 최대 수용 세포 수
+    // 표준 부착세포: 직경 15 µm → 단면적 ≈ 177 µm²
+    // packing efficiency 0.85 (육각밀집 이론값)
+    const cellAreaUM2 = 177.0;
+    const packingEff = 0.85;
+    final maxCells = (surfaceArea * 1e8 * packingEff) / cellAreaUM2;
+
+    // 초기 파종 세포 수 (모든 well 합산)
+    final seededCells =
+        session.wells.fold(0.0, (sum, w) => sum + w.cellCount);
+    final initialCells = seededCells > 0 ? seededCells : 500000.0;
+
+    // 90% 도달에 필요한 doubling 횟수
+    final ratio90 = maxCells * 0.90 / initialCells;
+    final doublings90 =
+        ratio90 > 1 ? (log(ratio90) / log(2)) : 2.0;
+
+    // Logistic sigmoid: 90% 기준 중심, 기울기 k
+    const k = 1.2;
+    final raw = 100.0 / (1 + exp(-k * (doublings - doublings90)));
+    return raw.clamp(0.0, 100.0);
+  }
+
+  /// "25 cm²" / "3.8 cm²/well" → double (per well 적용)
+  double _parseSurfaceAreaCm2(String s, int wellCount) {
+    // "3.8 cm²/well" → per well
+    final perWell = s.contains('/well');
+    final numStr = s.replaceAll(RegExp(r'[^0-9.]'), '');
+    final val = double.tryParse(numStr) ?? 25.0;
+    if (perWell) return val; // 이미 well 당 값
+    // 전체 면적이면 well 수로 나눔 (well-plate 아닌 경우 1)
+    return wellCount > 1 ? val / wellCount : val;
   }
 
   @override
@@ -323,6 +450,7 @@ class _IncubatorScreenState extends State<IncubatorScreen>
         : null;
     final confluence = _getConfluence(session);
     final needsPassage = confluence >= 90 && !_cellDead;
+    final isOvergrowth = confluence >= 95 && !_cellDead;
 
     return Scaffold(
       backgroundColor: const Color(0xFF050D1A),
@@ -357,11 +485,13 @@ class _IncubatorScreenState extends State<IncubatorScreen>
                         _CellParticleDisplay(
                             elapsed: _elapsed,
                             mediumCorrect: session.isMediumCorrect &&
-                                !_cellDead),
+                                !_cellDead,
+                            confluence: confluence,
+                            isOvergrowth: isOvergrowth),
                         const SizedBox(height: 16),
                         // 액션 버튼들
                         _buildActionButtons(
-                            context, needsPassage, session),
+                            context, needsPassage, isOvergrowth, session),
                         const SizedBox(height: 12),
                         // 진행 중 배양 세션 목록
                         _buildAllSessionsList(context),
@@ -524,11 +654,14 @@ class _IncubatorScreenState extends State<IncubatorScreen>
   }
 
   Widget _buildConfluencePanel(double confluence, bool needsPassage) {
+    final isOvergrowth = confluence >= 95;
     final color = confluence < 60
         ? Colors.tealAccent
         : confluence < 90
             ? Colors.amber
-            : Colors.redAccent;
+            : isOvergrowth
+                ? Colors.redAccent
+                : Colors.orange;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -560,15 +693,50 @@ class _IncubatorScreenState extends State<IncubatorScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
-              value: confluence / 100,
+              value: (confluence / 100).clamp(0.0, 1.0),
               backgroundColor: Colors.white12,
               valueColor: AlwaysStoppedAnimation(color),
               minHeight: 10,
             ),
           ),
-          if (needsPassage)
+          // 단계 마커
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _confluenceMarker('0%', Colors.white24),
+              _confluenceMarker('50%', Colors.tealAccent),
+              _confluenceMarker('90%', Colors.amber),
+              _confluenceMarker('95%+', Colors.redAccent),
+            ],
+          ),
+          if (isOvergrowth) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+                border:
+                    Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.dangerous, color: Colors.redAccent, size: 14),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Overgrowth 감지 — 세포 형태 이상 · 사멸 트렌드 전환',
+                      style:
+                          TextStyle(color: Colors.redAccent, fontSize: 10),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (needsPassage) ...[
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 6),
               child: Text(
                 '계대배양 필요 — 세포가 dish 면적의 90% 이상 도달했습니다.',
                 style: TextStyle(
@@ -576,15 +744,44 @@ class _IncubatorScreenState extends State<IncubatorScreen>
                     fontSize: 11),
               ),
             ),
+          ],
         ],
       ),
     );
   }
 
+  Widget _confluenceMarker(String label, Color color) {
+    return Text(label, style: TextStyle(color: color, fontSize: 9));
+  }
+
   Widget _buildActionButtons(
-      BuildContext context, bool needsPassage, ExperimentSession session) {
+      BuildContext context, bool needsPassage, bool isOvergrowth, ExperimentSession session) {
     return Column(
       children: [
+        // Overgrowth 경고
+        if (isOvergrowth) ...[
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.dangerous, color: Colors.redAccent, size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '⚠ Overgrowth (95%+) — 세포 형태 이상 발생, 즉시 계대배양 필요!',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         // 배양액 교체 버튼
         SizedBox(
           width: double.infinity,
@@ -1401,7 +1598,8 @@ class _StepRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 class CentrifugeDialog extends StatefulWidget {
   final SubcultureResult subcultureResult;
-  final void Function(double resuspensionVolumeUL) onComplete;
+  final void Function(double resuspensionVolumeUL, String rpm, String xg,
+      String duration, String temp) onComplete;
   const CentrifugeDialog(
       {super.key,
       required this.subcultureResult,
@@ -1811,7 +2009,13 @@ class _CentrifugeDialogState extends State<CentrifugeDialog> {
                   onPressed: () {
                     final vol =
                         double.tryParse(_resuspensionCtrl.text) ?? 1000.0;
-                    widget.onComplete(vol);
+                    widget.onComplete(
+                      vol,
+                      '${_currentRpm.toInt()} RPM',
+                      '${_currentXg.toStringAsFixed(0)} ×g',
+                      '${_durationMinutes}m ${_durationSeconds}s',
+                      '${_temperature.toInt()}°C',
+                    );
                   },
                   child: const Text('다음: 세포 계수',
                       style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1829,9 +2033,9 @@ class _CentrifugeDialogState extends State<CentrifugeDialog> {
 //  CellCountResult
 // ─────────────────────────────────────────────────────────────
 class CellCountResult {
-  final double totalCount;     // 총 세포 수 (4사분면 평균 × 10000 × 희석배수)
-  final double viableCount;    // 생존 세포 수
-  final double viability;      // 생존율 %
+  final double totalCount;
+  final double viableCount;
+  final double viability;
   final double cellsPerML;     // × 10⁶ cells/mL
   final double remainingVolumeUL;
   CellCountResult({
@@ -1844,16 +2048,20 @@ class CellCountResult {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  CellCountDialog  (트리판블루 1:1, 혈구계산판)
+//  CellCountDialog  (성장곡선 기반 예측 세포 계수 + Hemocytometer 시각화)
 // ─────────────────────────────────────────────────────────────
 class CellCountDialog extends StatefulWidget {
   final double resuspensionVolumeUL;
   final String cellName;
+  final double predictedCellsPerML;    // 성장곡선 기반 예측값 (cells/mL)
+  final double predictedViability;     // 예측 생존율 (%)
   final void Function(CellCountResult) onComplete;
   const CellCountDialog({
     super.key,
     required this.resuspensionVolumeUL,
     required this.cellName,
+    required this.predictedCellsPerML,
+    required this.predictedViability,
     required this.onComplete,
   });
 
@@ -1862,58 +2070,50 @@ class CellCountDialog extends StatefulWidget {
 }
 
 class _CellCountDialogState extends State<CellCountDialog> {
-  // 혈구계산판 4사분면 입력 (생존 세포)
-  final List<TextEditingController> _viableCtrl =
-      List.generate(4, (_) => TextEditingController());
-  // 사멸 세포 (트리판블루 염색)
-  final List<TextEditingController> _deadCtrl =
-      List.generate(4, (_) => TextEditingController());
+  // 세포계수에 사용한 10µL 차감
+  static const double _sampledUL = 10.0;
+  bool _confirmed = false;
 
-  CellCountResult? _result;
+  late CellCountResult _result;
 
   @override
-  void dispose() {
-    for (final c in [..._viableCtrl, ..._deadCtrl]) {
-      c.dispose();
-    }
-    super.dispose();
+  void initState() {
+    super.initState();
+    _calcResult();
   }
 
-  void _calculate() {
-    final viableVals = _viableCtrl
-        .map((c) => double.tryParse(c.text) ?? 0.0)
-        .toList();
-    final deadVals =
-        _deadCtrl.map((c) => double.tryParse(c.text) ?? 0.0).toList();
-
-    final avgViable = viableVals.reduce((a, b) => a + b) / 4;
-    final avgDead = deadVals.reduce((a, b) => a + b) / 4;
-    final avgTotal = avgViable + avgDead;
-
-    // 희석배수 = 2 (1:1 트리판블루)
-    // 혈구계산판 환산: 세포수/mL = 평균값 × 10^4 × 희석배수
-    const dilutionFactor = 2.0;
-    final cellsPerML = avgViable * 10000 * dilutionFactor; // cells/mL
-    final viability = avgTotal > 0 ? (avgViable / avgTotal) * 100 : 0.0;
-
-    // 세포계수에 사용한 10µL 차감
-    const sampledUL = 10.0;
+  void _calcResult() {
+    // 성장곡선 기반 예측값을 그대로 사용
+    final cellsPerML = widget.predictedCellsPerML; // cells/mL
+    final viability = widget.predictedViability.clamp(0.0, 100.0);
     final remaining =
-        (widget.resuspensionVolumeUL - sampledUL).clamp(0, double.infinity);
+        (widget.resuspensionVolumeUL - _sampledUL).clamp(0.0, double.infinity);
+    final totalCells = cellsPerML * (widget.resuspensionVolumeUL / 1000.0);
+    final viableCells = totalCells * (viability / 100);
 
-    setState(() {
-      _result = CellCountResult(
-        totalCount: avgTotal * 10000 * dilutionFactor,
-        viableCount: cellsPerML,
-        viability: viability,
-        cellsPerML: cellsPerML / 1e6,
-        remainingVolumeUL: remaining.toDouble(),
-      );
-    });
+    _result = CellCountResult(
+      totalCount: totalCells,
+      viableCount: viableCells,
+      viability: viability,
+      cellsPerML: cellsPerML / 1e6,
+      remainingVolumeUL: remaining,
+    );
+  }
+
+  // Hemocytometer 그리드에 표시할 예측 세포 수 (Q당)
+  int get _predictedPerQuadrant {
+    // hemocytometer 한 사분면 부피 = 0.1 µL
+    // cells per quadrant = (cells/mL) × 0.0001 mL
+    final val = (widget.predictedCellsPerML * 0.0001).round();
+    return val.clamp(1, 999);
   }
 
   @override
   Widget build(BuildContext context) {
+    final remaining = _result.remainingVolumeUL;
+    final totalCellsInRemaining =
+        _result.cellsPerML * (remaining / 1000);
+
     return Dialog(
       backgroundColor: const Color(0xFF0D1B2A),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1927,15 +2127,15 @@ class _CellCountDialogState extends State<CellCountDialog> {
             Row(
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.green.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                         color: Colors.green.withValues(alpha: 0.5)),
                   ),
-                  child: const Text('세포 계수',
+                  child: const Text('세포 계수 (Hemocytometer)',
                       style: TextStyle(
                           color: Colors.greenAccent,
                           fontWeight: FontWeight.bold)),
@@ -1946,9 +2146,9 @@ class _CellCountDialogState extends State<CellCountDialog> {
                         color: Colors.white54, fontSize: 12)),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // 트리판블루 안내
+            // Trypan Blue 안내
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -1965,7 +2165,7 @@ class _CellCountDialogState extends State<CellCountDialog> {
                       Icon(Icons.science,
                           color: Colors.lightBlueAccent, size: 16),
                       SizedBox(width: 6),
-                      Text('Trypan Blue 1:1 희석',
+                      Text('Trypan Blue 1:1 희석 완료',
                           style: TextStyle(
                               color: Colors.lightBlueAccent,
                               fontWeight: FontWeight.bold,
@@ -1977,177 +2177,229 @@ class _CellCountDialogState extends State<CellCountDialog> {
                     '• 세포 현탁액 10 µL + 0.4% Trypan Blue 10 µL\n'
                     '• 재현탁 볼륨: ${widget.resuspensionVolumeUL.toStringAsFixed(0)} µL\n'
                     '• 희석 배수: 2× (1:1)\n'
-                    '• 생존 세포: 무색 (Trypan Blue 제외)',
+                    '• 생존 세포: 무색, 사멸 세포: 파란색',
                     style: const TextStyle(
                         color: Colors.white54, fontSize: 11),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
-            // 혈구계산판 입력
-            const Text('혈구계산판 (4사분면 입력)',
+            // Hemocytometer 시각화
+            const Text('Hemocytometer 계산 결과',
                 style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 14)),
-            const SizedBox(height: 8),
-
-            // 4×2 그리드
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                childAspectRatio: 0.9,
-                crossAxisSpacing: 6,
-                mainAxisSpacing: 6,
-              ),
-              itemCount: 8,
-              itemBuilder: (ctx, i) {
-                final isViable = i < 4;
-                final idx = isViable ? i : i - 4;
-                final ctrl =
-                    isViable ? _viableCtrl[idx] : _deadCtrl[idx];
-                final color = isViable ? Colors.tealAccent : Colors.redAccent;
-                return Column(
-                  children: [
-                    Text(
-                      isViable ? 'Q${idx + 1} 생존' : 'Q${idx + 1} 사멸',
-                      style: TextStyle(
-                          color: color.withValues(alpha: 0.8),
-                          fontSize: 9),
-                    ),
-                    const SizedBox(height: 2),
-                    Expanded(
-                      child: TextField(
-                        controller: ctrl,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 14),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: color.withValues(alpha: 0.07),
-                          contentPadding: const EdgeInsets.symmetric(
-                              vertical: 6, horizontal: 4),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(
-                                color: color.withValues(alpha: 0.3)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(
-                                color: color.withValues(alpha: 0.4)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(6),
-                            borderSide: BorderSide(color: color),
-                          ),
-                          hintText: '0',
-                          hintStyle: const TextStyle(
-                              color: Colors.white24, fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+            const SizedBox(height: 4),
+            Text(
+              '성장 곡선 기반 예측값 (시작 세포 수 × 2^doublings)',
+              style: TextStyle(
+                  color: Colors.white38.withValues(alpha: 0.8),
+                  fontSize: 10),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
-            // 계산 버튼
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.black),
-                icon: const Icon(Icons.calculate),
-                label: const Text('계산',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: _calculate,
-              ),
-            ),
+            // Hemocytometer 그리드
+            _buildHemocytometerGrid(),
+            const SizedBox(height: 14),
 
             // 결과 표시
-            if (_result != null) ...[
-              const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.tealAccent.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: Colors.tealAccent.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('계산 결과',
+                      style: TextStyle(
+                          color: Colors.tealAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13)),
+                  const SizedBox(height: 10),
+                  _ResultRow(
+                    label: '세포 농도',
+                    value:
+                        '${_result.cellsPerML.toStringAsFixed(3)} × 10⁶ cells/mL',
+                  ),
+                  _ResultRow(
+                    label: '생존율 (Viability)',
+                    value:
+                        '${_result.viability.toStringAsFixed(1)}%',
+                    valueColor: _result.viability >= 90
+                        ? Colors.tealAccent
+                        : _result.viability >= 70
+                            ? Colors.amber
+                            : Colors.redAccent,
+                  ),
+                  _ResultRow(
+                    label: '잔여 현탁액',
+                    value:
+                        '${remaining.toStringAsFixed(0)} µL (−${_sampledUL.toInt()} µL)',
+                  ),
+                  _ResultRow(
+                    label: '잔여액 총 세포',
+                    value:
+                        '${(totalCellsInRemaining / 1e6).toStringAsFixed(3)} × 10⁶',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 확인 후 CleanBench로 이동
+            if (!_confirmed) ...[
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.tealAccent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.amber.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: Colors.tealAccent.withValues(alpha: 0.4)),
+                      color: Colors.amber.withValues(alpha: 0.4)),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('계산 결과',
-                        style: TextStyle(
-                            color: Colors.tealAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13)),
-                    const SizedBox(height: 8),
-                    _ResultRow(
-                      label: '세포 농도',
-                      value:
-                          '${_result!.cellsPerML.toStringAsFixed(3)} × 10⁶ cells/mL',
-                    ),
-                    _ResultRow(
-                      label: '생존율 (Viability)',
-                      value: '${_result!.viability.toStringAsFixed(1)}%',
-                      valueColor: _result!.viability >= 90
-                          ? Colors.tealAccent
-                          : _result!.viability >= 70
-                              ? Colors.amber
-                              : Colors.redAccent,
-                    ),
-                    _ResultRow(
-                      label: '잔여 현탁액',
-                      value:
-                          '${_result!.remainingVolumeUL.toStringAsFixed(0)} µL',
-                    ),
-                    _ResultRow(
-                      label: '총 세포 수 (추정)',
-                      value:
-                          '${(_result!.cellsPerML * _result!.remainingVolumeUL / 1000).toStringAsFixed(2)} × 10⁶',
-                    ),
-                  ],
+                child: const Text(
+                  '계산이 완료되었습니다.\n"계대배양 진행" 을 누르면 잔여 세포 현탁액으로 CleanBench에서 새 배양을 시작합니다.',
+                  style: TextStyle(
+                      color: Colors.amber, fontSize: 12),
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Colors.white24),
-                          foregroundColor: Colors.white54),
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('닫기 (계속 진행)'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00E5FF),
-                          foregroundColor: Colors.black),
-                      onPressed: () => widget.onComplete(_result!),
-                      child: const Text('저장 & 완료',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.tealAccent,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14)),
+                  icon: const Icon(Icons.science),
+                  label: const Text('계대배양 진행 → CleanBench',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    setState(() => _confirmed = true);
+                    widget.onComplete(_result);
+                  },
+                ),
+              ),
+            ] else ...[
+              const Center(
+                child: CircularProgressIndicator(
+                    color: Colors.tealAccent),
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHemocytometerGrid() {
+    final viable = _predictedPerQuadrant;
+    final dead = (viable * (1 - widget.predictedViability / 100) /
+            (widget.predictedViability / 100))
+        .round()
+        .clamp(0, 999);
+
+    final quadrantData = List.generate(
+        4,
+        (i) => {
+              'viable': viable + (i == 1 ? 1 : i == 3 ? -1 : 0),
+              'dead': dead + (i == 2 ? 1 : 0),
+            });
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+            color: Colors.green.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          // 레이블
+          const Padding(
+            padding: EdgeInsets.only(bottom: 6),
+            child: Text(
+              'Hemocytometer — 4사분면 예측 세포 수',
+              style: TextStyle(
+                  color: Colors.white54, fontSize: 11),
+            ),
+          ),
+          // 2×2 그리드
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 1.8,
+              crossAxisSpacing: 6,
+              mainAxisSpacing: 6,
+            ),
+            itemCount: 4,
+            itemBuilder: (ctx, i) {
+              final v = quadrantData[i]['viable']!;
+              final d = quadrantData[i]['dead']!;
+              return Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color:
+                      Colors.tealAccent.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: Colors.tealAccent
+                          .withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Q${i + 1}',
+                        style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 10)),
+                    Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.center,
+                      children: [
+                        Text('$v',
+                            style: const TextStyle(
+                                color: Colors.tealAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                        const Text(' / ',
+                            style: TextStyle(
+                                color: Colors.white24,
+                                fontSize: 12)),
+                        Text('$d',
+                            style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 14)),
+                      ],
+                    ),
+                    const Text('생존 / 사멸',
+                        style: TextStyle(
+                            color: Colors.white24,
+                            fontSize: 9)),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '평균 생존 세포: $viable cells/quadrant  ×  10⁴  ×  2 (희석) = '
+            '${(viable * 10000 * 2 / 1e6).toStringAsFixed(3)} × 10⁶ cells/mL',
+            style: const TextStyle(
+                color: Colors.white54, fontSize: 10),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -2284,7 +2536,24 @@ class _CellGrowthStatus extends StatelessWidget {
         session.wells.fold<double>(0, (sum, w) => sum + w.cellCount);
     final doublings =
         elapsed.inSeconds / (cell.doublingTimeHours * 3600);
-    final currentCells = totalCells * pow(2, doublings);
+
+    // Overgrowth 여부 판단 (대략 doublings 대비 95% confluence 추정)
+    // 간단히: doublings > doublings90 + 1 이면 overgrowth
+    final isOvergrowth = doublings > 5.5; // 근사값
+
+    double currentCells;
+    if (cellDead) {
+      currentCells = 0;
+    } else if (isOvergrowth && session.isMediumCorrect) {
+      // Overgrowth: 최대 세포 수에서 감소 시작 (사멸 트렌드)
+      final overgrowthFactor = doublings - 5.5;
+      final maxCells = totalCells * pow(2, 5.5);
+      currentCells = maxCells * exp(-0.3 * overgrowthFactor);
+    } else if (!session.isMediumCorrect) {
+      currentCells = totalCells * 0.5;
+    } else {
+      currentCells = totalCells * pow(2, doublings);
+    }
 
     String formatCells(double n) {
       if (n >= 1e9) return '${(n / 1e9).toStringAsFixed(2)}×10⁹';
@@ -2293,6 +2562,30 @@ class _CellGrowthStatus extends StatelessWidget {
       return n.toStringAsFixed(0);
     }
 
+    final statusLabel = cellDead
+        ? '✖ 세포 사멸'
+        : isOvergrowth && session.isMediumCorrect
+            ? '⚠ Overgrowth — 사멸 트렌드'
+            : session.isMediumCorrect
+                ? '세포 성장 중'
+                : '⚠ 세포 사멸 위험';
+
+    final statusColor = cellDead
+        ? Colors.red
+        : isOvergrowth && session.isMediumCorrect
+            ? Colors.redAccent
+            : session.isMediumCorrect
+                ? Colors.tealAccent
+                : Colors.redAccent;
+
+    final statusIcon = cellDead
+        ? Icons.dangerous
+        : isOvergrowth && session.isMediumCorrect
+            ? Icons.trending_down
+            : session.isMediumCorrect
+                ? Icons.trending_up
+                : Icons.trending_down;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(14),
@@ -2300,53 +2593,35 @@ class _CellGrowthStatus extends StatelessWidget {
         color: Colors.black.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: cellDead
-                ? Colors.red.withValues(alpha: 0.5)
-                : session.isMediumCorrect
-                    ? Colors.tealAccent.withValues(alpha: 0.3)
-                    : Colors.red.withValues(alpha: 0.3)),
+            color: statusColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(
-            cellDead
-                ? Icons.dangerous
-                : session.isMediumCorrect
-                    ? Icons.trending_up
-                    : Icons.trending_down,
-            color: cellDead
-                ? Colors.red
-                : session.isMediumCorrect
-                    ? Colors.tealAccent
-                    : Colors.redAccent,
-            size: 28,
-          ),
+          Icon(statusIcon, color: statusColor, size: 28),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  cellDead
-                      ? '✖ 세포 사멸'
-                      : session.isMediumCorrect
-                          ? '세포 성장 중'
-                          : '⚠ 세포 사멸 위험',
+                  statusLabel,
                   style: TextStyle(
-                    color: cellDead
-                        ? Colors.red
-                        : session.isMediumCorrect
-                            ? Colors.tealAccent
-                            : Colors.redAccent,
+                    color: statusColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
                 ),
                 Text(
-                  '현재 세포 수: ${formatCells(cellDead ? 0 : session.isMediumCorrect ? currentCells : totalCells * 0.5)}',
+                  '현재 세포 수: ${formatCells(currentCells)}',
                   style: const TextStyle(
                       color: Colors.white54, fontSize: 12),
                 ),
+                if (isOvergrowth && session.isMediumCorrect && !cellDead)
+                  const Text(
+                    '밀집 → 접촉억제 → 세포 수 감소 중',
+                    style: TextStyle(
+                        color: Colors.redAccent, fontSize: 10),
+                  ),
               ],
             ),
           ),
@@ -2363,8 +2638,14 @@ class _CellGrowthStatus extends StatelessWidget {
 class _CellParticleDisplay extends StatefulWidget {
   final Duration elapsed;
   final bool mediumCorrect;
-  const _CellParticleDisplay(
-      {required this.elapsed, required this.mediumCorrect});
+  final double confluence;
+  final bool isOvergrowth;
+  const _CellParticleDisplay({
+    required this.elapsed,
+    required this.mediumCorrect,
+    this.confluence = 0,
+    this.isOvergrowth = false,
+  });
 
   @override
   State<_CellParticleDisplay> createState() =>
@@ -2391,18 +2672,57 @@ class _CellParticleDisplayState extends State<_CellParticleDisplay>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animController,
-      builder: (_, __) => SizedBox(
-        height: 60,
-        child: CustomPaint(
-          painter: _CellPainter(
-            progress: _animController.value,
-            mediumCorrect: widget.mediumCorrect,
+    // Overgrowth 시 라벨 표시
+    final label = widget.isOvergrowth
+        ? 'Overgrowth — 세포 형태 이상'
+        : widget.confluence >= 90
+            ? '90%+ Confluence'
+            : null;
+
+    return Column(
+      children: [
+        AnimatedBuilder(
+          animation: _animController,
+          builder: (_, __) => Container(
+            height: 80,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: widget.isOvergrowth
+                    ? Colors.redAccent.withValues(alpha: 0.5)
+                    : widget.mediumCorrect
+                        ? Colors.tealAccent.withValues(alpha: 0.2)
+                        : Colors.red.withValues(alpha: 0.2),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: CustomPaint(
+                painter: _CellPainter(
+                  progress: _animController.value,
+                  mediumCorrect: widget.mediumCorrect,
+                  confluence: widget.confluence,
+                  isOvergrowth: widget.isOvergrowth,
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ),
           ),
-          child: const SizedBox.expand(),
         ),
-      ),
+        if (label != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: widget.isOvergrowth
+                  ? Colors.redAccent
+                  : Colors.amber,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -2410,14 +2730,21 @@ class _CellParticleDisplayState extends State<_CellParticleDisplay>
 class _CellPainter extends CustomPainter {
   final double progress;
   final bool mediumCorrect;
+  final double confluence;
+  final bool isOvergrowth;
   static final _rng = Random(42);
   static List<Offset> _positions = [];
   static bool _initialized = false;
 
-  _CellPainter({required this.progress, required this.mediumCorrect}) {
+  _CellPainter({
+    required this.progress,
+    required this.mediumCorrect,
+    this.confluence = 0,
+    this.isOvergrowth = false,
+  }) {
     if (!_initialized) {
       _positions = List.generate(
-          12, (_) => Offset(_rng.nextDouble(), _rng.nextDouble()));
+          30, (_) => Offset(_rng.nextDouble(), _rng.nextDouble()));
       _initialized = true;
     }
   }
@@ -2426,33 +2753,69 @@ class _CellPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..style = PaintingStyle.fill;
 
-    for (int i = 0; i < _positions.length; i++) {
+    // 합류도에 따라 표시할 세포 수 결정
+    final activeCells = ((confluence / 100) * _positions.length)
+        .round()
+        .clamp(1, _positions.length);
+
+    for (int i = 0; i < activeCells; i++) {
       final offset = (progress + i / _positions.length) % 1.0;
       final x = _positions[i].dx * size.width;
       final y = _positions[i].dy * size.height;
-      final radius = mediumCorrect
-          ? 4.0 + sin(offset * 2 * pi) * 2
-          : 3.0 - offset * 1.5;
 
-      paint.color = mediumCorrect
-          ? Color.lerp(Colors.tealAccent, Colors.cyan, sin(offset * pi))!
-              .withValues(alpha: 0.6)
-          : Colors.red.withValues(alpha: 0.4 - offset * 0.3);
+      double radius;
+      Color color;
 
+      if (isOvergrowth) {
+        // Overgrowth: 세포가 비정상적으로 커지고 일부는 죽어가는 형태
+        radius = 6.0 + sin(offset * pi) * 4 - (i % 3 == 0 ? 3 : 0);
+        // 일부는 노란/빨간 불규칙 형태
+        color = i % 4 == 0
+            ? Colors.yellow.withValues(alpha: 0.6)
+            : i % 3 == 0
+                ? Colors.redAccent.withValues(alpha: 0.5)
+                : Colors.orange.withValues(alpha: 0.4);
+      } else if (!mediumCorrect) {
+        // 사멸: 세포가 쪼그라듦
+        radius = (3.0 - offset * 1.5).clamp(0.5, 3.0);
+        color = Colors.red.withValues(alpha: 0.4 - offset * 0.3);
+      } else {
+        // 정상 성장
+        radius = 3.0 + sin(offset * 2 * pi) * 1.5;
+        color = Color.lerp(Colors.tealAccent, Colors.cyan,
+                sin(offset * pi))!
+            .withValues(alpha: 0.7);
+      }
+
+      paint.color = color;
       if (radius > 0) {
         canvas.drawCircle(Offset(x, y), radius, paint);
-        if (mediumCorrect && offset > 0.8) {
+        // 분열 중인 세포 (합류도 < 90%일 때 정상 성장)
+        if (mediumCorrect && !isOvergrowth && offset > 0.8) {
           canvas.drawCircle(
-              Offset(x + 8, y + 3),
-              radius * 0.7,
-              paint..color = Colors.cyan.withValues(alpha: 0.4));
+            Offset(x + radius * 1.5, y),
+            radius * 0.6,
+            paint
+              ..color =
+                  Colors.cyan.withValues(alpha: 0.4),
+          );
+        }
+        // Overgrowth: 파편 표시
+        if (isOvergrowth && i % 5 == 0) {
+          paint.color =
+              Colors.yellow.withValues(alpha: 0.3);
+          canvas.drawCircle(
+              Offset(x + 8, y + 4), radius * 0.3, paint);
         }
       }
     }
   }
 
   @override
-  bool shouldRepaint(_CellPainter old) => old.progress != progress;
+  bool shouldRepaint(_CellPainter old) =>
+      old.progress != progress ||
+      old.confluence != confluence ||
+      old.isOvergrowth != isOvergrowth;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2642,6 +3005,66 @@ class _IncubatorSessionDetailSheetState
             '${(widget.session.totalCellCount / 1000000).toStringAsFixed(2)} × 10⁶ cells',
           ),
           const SizedBox(height: 20),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 8),
+          // 세포 폐기 버튼
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent),
+                foregroundColor: Colors.redAccent,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              icon: const Icon(Icons.delete_forever, size: 18),
+              label: const Text('세포 폐기 (배양 종료)'),
+              onPressed: () => _confirmDelete(context),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A0A0A),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Colors.red, width: 1.5)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.redAccent, size: 24),
+            SizedBox(width: 8),
+            Text('세포 폐기 확인',
+                style: TextStyle(color: Colors.redAccent, fontSize: 15)),
+          ],
+        ),
+        content: Text(
+          '${widget.session.cellTypeName} 배양을 종료하고 세포를 폐기합니까?\n이 작업은 되돌릴 수 없습니다.',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white),
+            onPressed: () async {
+              final appState = context.read<AppState>();
+              await appState.removeCultureSession(widget.session.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('폐기 확인',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
@@ -2671,5 +3094,19 @@ class _DetailRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  _PassageCleanBenchScreen  (계대배양 후 CleanBench 복귀 래퍼)
+//  - 잔여 볼륨 / 예측 세포 수가 ExperimentSession에 이미 저장됨
+//  - CleanBenchScreen의 step 을 4(세포 분주)로 직접 열기
+// ─────────────────────────────────────────────────────────────
+class _PassageCleanBenchScreen extends StatelessWidget {
+  const _PassageCleanBenchScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const CleanBenchScreen();
   }
 }
