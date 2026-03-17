@@ -23,8 +23,8 @@ class _AdminScreenState extends State<AdminScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AuthService>().loadUsers();
     });
-    // 5초마다 자동으로 승인 대기 목록 새로고침
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    // 10초마다 자동으로 승인 대기 목록 새로고침
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) {
         context.read<AuthService>().loadUsers();
       }
@@ -116,12 +116,43 @@ class _AdminScreenState extends State<AdminScreen>
   }
 }
 
-class _PendingUsersTab extends StatelessWidget {
+class _PendingUsersTab extends StatefulWidget {
+  @override
+  State<_PendingUsersTab> createState() => _PendingUsersTabState();
+}
+
+class _PendingUsersTabState extends State<_PendingUsersTab> {
+  // 현재 처리 중인 userId 집합 (중복 클릭/폴링 충돌 방지)
+  final Set<String> _processingIds = {};
+
+  Future<void> _handleApprove(AuthService auth, String userId) async {
+    if (_processingIds.contains(userId)) return;
+    setState(() => _processingIds.add(userId));
+    try {
+      await auth.approveUser(userId);
+    } finally {
+      if (mounted) setState(() => _processingIds.remove(userId));
+    }
+  }
+
+  Future<void> _handleReject(AuthService auth, String userId) async {
+    if (_processingIds.contains(userId)) return;
+    setState(() => _processingIds.add(userId));
+    try {
+      await auth.rejectUser(userId);
+    } finally {
+      if (mounted) setState(() => _processingIds.remove(userId));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthService>(
       builder: (context, auth, _) {
-        if (auth.pendingUsers.isEmpty) {
+        // 리스트를 로컬 스냅샷으로 복사 → rebuild 중 목록 변경으로 인한 버그 방지
+        final pending = List<UserProfile>.from(auth.pendingUsers);
+
+        if (pending.isEmpty) {
           return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -136,14 +167,16 @@ class _PendingUsersTab extends StatelessWidget {
         }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: auth.pendingUsers.length,
+          itemCount: pending.length,
           itemBuilder: (context, i) {
-            final user = auth.pendingUsers[i];
+            final user = pending[i];
+            final isProcessing = _processingIds.contains(user.id);
             return _UserCard(
               user: user,
               showActions: true,
-              onApprove: () => auth.approveUser(user.id),
-              onReject: () => auth.rejectUser(user.id),
+              isProcessing: isProcessing,
+              onApprove: isProcessing ? null : () => _handleApprove(auth, user.id),
+              onReject: isProcessing ? null : () => _handleReject(auth, user.id),
             );
           },
         );
@@ -229,6 +262,7 @@ class _ApprovedUsersTab extends StatelessWidget {
 class _UserCard extends StatelessWidget {
   final UserProfile user;
   final bool showActions;
+  final bool isProcessing;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
   final VoidCallback? onRevoke;
@@ -236,6 +270,7 @@ class _UserCard extends StatelessWidget {
   const _UserCard({
     required this.user,
     required this.showActions,
+    this.isProcessing = false,
     this.onApprove,
     this.onReject,
     this.onRevoke,
@@ -295,6 +330,20 @@ class _UserCard extends StatelessWidget {
               style:
                   const TextStyle(color: Colors.white54, fontSize: 13)),
           if (showActions) ...[
+            if (isProcessing)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Center(
+                  child: SizedBox(
+                    width: 24, height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF00E5FF),
+                    ),
+                  ),
+                ),
+              )
+            else ...[
             const SizedBox(height: 12),
             Row(
               children: [
@@ -321,6 +370,7 @@ class _UserCard extends StatelessWidget {
                 ),
               ],
             ),
+            ],
           ] else ...[
             // 승인된 사용자 - 접근 권한 취소 버튼
             const SizedBox(height: 10),

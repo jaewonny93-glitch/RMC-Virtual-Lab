@@ -196,6 +196,9 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  // 현재 처리 중인 userId 집합 (중복 API 호출 방지)
+  final Set<String> _processingUserIds = {};
+
   /// 승인 (서버에 PUT)
   Future<void> approveUser(String userId) async {
     await _updateUserStatus(userId, UserStatus.approved);
@@ -212,6 +215,10 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> _updateUserStatus(String userId, UserStatus status) async {
+    // 이미 처리 중인 경우 중복 실행 방지
+    if (_processingUserIds.contains(userId)) return;
+    _processingUserIds.add(userId);
+
     final statusStr = status == UserStatus.approved
         ? 'approved'
         : status == UserStatus.rejected
@@ -227,8 +234,10 @@ class AuthService extends ChangeNotifier {
           .timeout(const Duration(seconds: 5));
     } catch (_) {
       // 로컬 폴백
+    } finally {
+      _processingUserIds.remove(userId);
     }
-    // 로컬 메모리도 즉시 업데이트
+    // 로컬 메모리 즉시 업데이트
     await loadUsers();
   }
 
