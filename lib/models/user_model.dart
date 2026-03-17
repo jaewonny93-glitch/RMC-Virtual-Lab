@@ -152,12 +152,90 @@ class WellRecord {
       );
 }
 
+// ─────────────────────────────────────────────────────────────
+//  CultureSession  (사용자별 누적 배양 세션 모델)
+// ─────────────────────────────────────────────────────────────
+class CultureSession {
+  final String id;
+  final String userId;
+  final String cellTypeId;
+  final String cellTypeName;
+  final String dishTypeId;
+  final String dishTypeName;
+  final String medium;
+  final bool mediumCorrect;
+  final DateTime startTime;
+  final double totalCellCount;
+  final int seededWellCount;
+  final double temp;
+  final double co2;
+  final double humidity;
+  bool isActive;
+
+  CultureSession({
+    required this.id,
+    required this.userId,
+    required this.cellTypeId,
+    required this.cellTypeName,
+    required this.dishTypeId,
+    required this.dishTypeName,
+    required this.medium,
+    required this.mediumCorrect,
+    required this.startTime,
+    required this.totalCellCount,
+    required this.seededWellCount,
+    this.temp = 37.0,
+    this.co2 = 5.0,
+    this.humidity = 95.0,
+    this.isActive = true,
+  });
+
+  Duration get elapsed => DateTime.now().difference(startTime);
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'userId': userId,
+        'cellTypeId': cellTypeId,
+        'cellTypeName': cellTypeName,
+        'dishTypeId': dishTypeId,
+        'dishTypeName': dishTypeName,
+        'medium': medium,
+        'mediumCorrect': mediumCorrect,
+        'startTime': startTime.toIso8601String(),
+        'totalCellCount': totalCellCount,
+        'seededWellCount': seededWellCount,
+        'temp': temp,
+        'co2': co2,
+        'humidity': humidity,
+        'isActive': isActive,
+      };
+
+  factory CultureSession.fromJson(Map<String, dynamic> json) => CultureSession(
+        id: json['id'] as String,
+        userId: json['userId'] as String? ?? '',
+        cellTypeId: json['cellTypeId'] as String,
+        cellTypeName: json['cellTypeName'] as String,
+        dishTypeId: json['dishTypeId'] as String,
+        dishTypeName: json['dishTypeName'] as String,
+        medium: json['medium'] as String,
+        mediumCorrect: json['mediumCorrect'] as bool,
+        startTime: DateTime.parse(json['startTime'] as String),
+        totalCellCount: (json['totalCellCount'] as num).toDouble(),
+        seededWellCount: json['seededWellCount'] as int? ?? 1,
+        temp: (json['temp'] as num?)?.toDouble() ?? 37.0,
+        co2: (json['co2'] as num?)?.toDouble() ?? 5.0,
+        humidity: (json['humidity'] as num?)?.toDouble() ?? 95.0,
+        isActive: json['isActive'] as bool? ?? true,
+      );
+}
+
 class AppState extends ChangeNotifier {
   UserProfile? _currentUser;
   bool _isAdmin = false;
   List<ExperimentRecord> _history = [];
   List<ExperimentRecord> _savedData = [];
   List<Map<String, dynamic>> _notices = [];
+  List<CultureSession> _cultureSessions = [];
 
   UserProfile? get currentUser => _currentUser;
   bool get isAdmin => _isAdmin;
@@ -165,6 +243,20 @@ class AppState extends ChangeNotifier {
   List<ExperimentRecord> get history => _history;
   List<ExperimentRecord> get savedData => _savedData;
   List<Map<String, dynamic>> get notices => _notices;
+  List<CultureSession> get cultureSessions => _cultureSessions;
+
+  /// 현재 사용자 활성 세션 (최대 10개)
+  List<CultureSession> get activeSessions =>
+      _cultureSessions.where((s) => s.isActive).toList();
+
+  /// 특정 날짜의 배양 세션
+  List<CultureSession> sessionsForDate(DateTime date) =>
+      _cultureSessions.where((s) {
+        final d = s.startTime;
+        return d.year == date.year &&
+            d.month == date.month &&
+            d.day == date.day;
+      }).toList();
 
   Future<void> loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -193,7 +285,45 @@ class AppState extends ChangeNotifier {
           .map((e) => e as Map<String, dynamic>)
           .toList();
     }
+    final sessionsJson = prefs.getString('cultureSessions');
+    if (sessionsJson != null) {
+      _cultureSessions = (jsonDecode(sessionsJson) as List)
+          .map((e) => CultureSession.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
     notifyListeners();
+  }
+
+  Future<void> _saveCultureSessions() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cultureSessions',
+        jsonEncode(_cultureSessions.map((s) => s.toJson()).toList()));
+  }
+
+  /// 새 배양 세션 추가 (사용자별 최대 10개)
+  Future<void> addCultureSession(CultureSession session) async {
+    final userId = session.userId;
+    final userSessions =
+        _cultureSessions.where((s) => s.userId == userId && s.isActive).toList();
+    if (userSessions.length >= 10) {
+      // 가장 오래된 세션 비활성화
+      final oldest = userSessions.reduce(
+          (a, b) => a.startTime.isBefore(b.startTime) ? a : b);
+      oldest.isActive = false;
+    }
+    _cultureSessions.insert(0, session);
+    await _saveCultureSessions();
+    notifyListeners();
+  }
+
+  /// 배양 세션 종료
+  Future<void> endCultureSession(String sessionId) async {
+    final idx = _cultureSessions.indexWhere((s) => s.id == sessionId);
+    if (idx != -1) {
+      _cultureSessions[idx].isActive = false;
+      await _saveCultureSessions();
+      notifyListeners();
+    }
   }
 
   Future<void> loginAsAdmin() async {

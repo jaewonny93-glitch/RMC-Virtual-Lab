@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
+import 'home_screen.dart';
 import 'lab/lab_screen.dart';
 import 'graph_screen.dart';
 import 'data_screen.dart';
@@ -18,6 +19,7 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
+    const HomeScreen(),
     const LabScreen(),
     const GraphScreen(),
     const DataScreen(),
@@ -91,29 +93,33 @@ class _MainScreenState extends State<MainScreen> {
           selectedItemColor: const Color(0xFF00E5FF),
           unselectedItemColor: Colors.white38,
           type: BottomNavigationBarType.fixed,
-          selectedFontSize: 11,
-          unselectedFontSize: 10,
+          selectedFontSize: 10,
+          unselectedFontSize: 9,
           elevation: 0,
           items: const [
             BottomNavigationBarItem(
-                icon: Icon(Icons.science_outlined),
-                activeIcon: Icon(Icons.science),
+                icon: Icon(Icons.home_outlined, size: 22),
+                activeIcon: Icon(Icons.home, size: 22),
+                label: 'Home'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.science_outlined, size: 22),
+                activeIcon: Icon(Icons.science, size: 22),
                 label: 'Lab'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.show_chart_outlined),
-                activeIcon: Icon(Icons.show_chart),
+                icon: Icon(Icons.show_chart_outlined, size: 22),
+                activeIcon: Icon(Icons.show_chart, size: 22),
                 label: 'Graph'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.folder_outlined),
-                activeIcon: Icon(Icons.folder),
+                icon: Icon(Icons.folder_outlined, size: 22),
+                activeIcon: Icon(Icons.folder, size: 22),
                 label: 'Data'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.history_outlined),
-                activeIcon: Icon(Icons.history),
+                icon: Icon(Icons.history_outlined, size: 22),
+                activeIcon: Icon(Icons.history, size: 22),
                 label: 'History'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.settings_outlined),
-                activeIcon: Icon(Icons.settings),
+                icon: Icon(Icons.settings_outlined, size: 22),
+                activeIcon: Icon(Icons.settings, size: 22),
                 label: 'Settings'),
           ],
         ),

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 import '../../models/cell_model.dart';
 import '../../models/lab_model.dart';
+import '../../models/user_model.dart';
 import '../main_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -361,6 +362,9 @@ class _IncubatorScreenState extends State<IncubatorScreen>
                         // 액션 버튼들
                         _buildActionButtons(
                             context, needsPassage, session),
+                        const SizedBox(height: 12),
+                        // 진행 중 배양 세션 목록
+                        _buildAllSessionsList(context),
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -653,6 +657,48 @@ class _IncubatorScreenState extends State<IncubatorScreen>
             ),
           ],
         ),
+      ],
+    );
+  }
+
+  // ── 진행 중 배양 세션 목록 ──────────────────────────────────
+  Widget _buildAllSessionsList(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final sessions = appState.activeSessions;
+    if (sessions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              '인큐베이터 배양 진행 중',
+              style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.tealAccent.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${sessions.length}',
+                style: const TextStyle(
+                    color: Colors.tealAccent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...sessions.map((s) => _IncubatorSessionTile(session: s)),
       ],
     );
   }
@@ -2407,4 +2453,223 @@ class _CellPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CellPainter old) => old.progress != progress;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  _IncubatorSessionTile  (인큐베이터 화면 배양 세션 항목)
+// ─────────────────────────────────────────────────────────────
+class _IncubatorSessionTile extends StatelessWidget {
+  final CultureSession session;
+  const _IncubatorSessionTile({required this.session});
+
+  void _showDetail(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0D1B2A),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _IncubatorSessionDetailSheet(session: session),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final elapsed = session.elapsed;
+    final h = elapsed.inHours;
+    final m = elapsed.inMinutes.remainder(60);
+    final s = elapsed.inSeconds.remainder(60);
+
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.teal.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: Colors.tealAccent.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.thermostat,
+                color: Colors.tealAccent, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    session.cellTypeName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13),
+                  ),
+                  Text(
+                    '${session.dishTypeName}  |  ${session.medium}',
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${h}h ${m}m ${s}s',
+                  style: const TextStyle(
+                      color: Colors.tealAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold),
+                ),
+                const Text(
+                  '탭하여 상세 보기',
+                  style: TextStyle(
+                      color: Colors.white24, fontSize: 10),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  _IncubatorSessionDetailSheet  (배양 조건 상세 바텀시트)
+// ─────────────────────────────────────────────────────────────
+class _IncubatorSessionDetailSheet extends StatefulWidget {
+  final CultureSession session;
+  const _IncubatorSessionDetailSheet({required this.session});
+
+  @override
+  State<_IncubatorSessionDetailSheet> createState() =>
+      _IncubatorSessionDetailSheetState();
+}
+
+class _IncubatorSessionDetailSheetState
+    extends State<_IncubatorSessionDetailSheet> {
+  late Timer _timer;
+  Duration _elapsed = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _elapsed = widget.session.elapsed;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() => _elapsed = widget.session.elapsed);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = _elapsed.inHours;
+    final m = _elapsed.inMinutes.remainder(60);
+    final s = _elapsed.inSeconds.remainder(60);
+    final startStr =
+        '${widget.session.startTime.year}/'
+        '${widget.session.startTime.month.toString().padLeft(2, '0')}/'
+        '${widget.session.startTime.day.toString().padLeft(2, '0')} '
+        '${widget.session.startTime.hour.toString().padLeft(2, '0')}:'
+        '${widget.session.startTime.minute.toString().padLeft(2, '0')}';
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 제목 뱃지
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.tealAccent.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              '인큐베이터 배양 조건',
+              style: TextStyle(
+                  color: Colors.tealAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            widget.session.cellTypeName,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold),
+          ),
+          Text(
+            widget.session.dishTypeName,
+            style: const TextStyle(
+                color: Colors.white54, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 10),
+          // 실시간 경과 시간
+          _DetailRow('경과 시간', '${h}h ${m}m ${s}s'),
+          _DetailRow('배양 시작', startStr),
+          _DetailRow('배양액', widget.session.medium),
+          _DetailRow('배지 적합성',
+              widget.session.mediumCorrect ? '✅ 적합' : '❌ 부적합'),
+          const Divider(color: Colors.white12, height: 20),
+          // 환경 조건
+          _DetailRow('온도', '${widget.session.temp}°C'),
+          _DetailRow('CO₂ 농도', '${widget.session.co2}%'),
+          _DetailRow('습도', '${widget.session.humidity}%'),
+          const Divider(color: Colors.white12, height: 20),
+          // 세포 정보
+          _DetailRow('파종 Well 수',
+              '${widget.session.seededWellCount}개'),
+          _DetailRow(
+            '초기 세포 수',
+            '${(widget.session.totalCellCount / 1000000).toStringAsFixed(2)} × 10⁶ cells',
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _DetailRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white54, fontSize: 13)),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
 }

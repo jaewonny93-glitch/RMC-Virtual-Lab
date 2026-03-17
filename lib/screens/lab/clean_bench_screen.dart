@@ -27,6 +27,8 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
 
   final _mediumVolumeCtrl = TextEditingController();
   final _cellVolumeCtrl = TextEditingController();
+  final _mediumRepeatCtrl = TextEditingController(text: '1');
+  final _cellRepeatCtrl = TextEditingController(text: '1');
 
   @override
   void initState() {
@@ -43,6 +45,8 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
     _enterController.dispose();
     _mediumVolumeCtrl.dispose();
     _cellVolumeCtrl.dispose();
+    _mediumRepeatCtrl.dispose();
+    _cellRepeatCtrl.dispose();
     super.dispose();
   }
 
@@ -739,6 +743,58 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                 const SizedBox(height: 4),
                 Text('⚠ dish 최대 용량(${dishMaxVolUL.toInt()} μL) 초과 시 넘칠 수 있습니다',
                     style: TextStyle(color: Colors.orange.shade300, fontSize: 10)),
+                const SizedBox(height: 12),
+                // ★ 반복 횟수 입력
+                const Text('반복 횟수 (회)',
+                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _mediumRepeatCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    suffixText: '회',
+                    suffixStyle: const TextStyle(color: Colors.white54),
+                    hintText: '1 ~ 100',
+                    hintStyle: const TextStyle(color: Colors.white24),
+                    enabledBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.amber, width: 0.5)),
+                    focusedBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.amber)),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 8),
+                // ★ 총 볼륨 계산 표시
+                Builder(builder: (ctx) {
+                  final vol = double.tryParse(_mediumVolumeCtrl.text) ?? 0;
+                  final rep = int.tryParse(_mediumRepeatCtrl.text) ?? 1;
+                  final total = vol * rep;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('총 분주 볼륨',
+                            style: TextStyle(color: Colors.amber, fontSize: 12)),
+                        Text(
+                          '${vol.toStringAsFixed(0)} μL × $rep회 = ${total.toStringAsFixed(0)} μL',
+                          style: const TextStyle(
+                              color: Colors.amber,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -854,6 +910,90 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                       '예상 분주 세포 수: ${_formatCellCount(cells)}',
                       style: const TextStyle(
                           color: Colors.white38, fontSize: 11));
+                }),
+                const SizedBox(height: 12),
+                // ★ 반복 횟수 입력
+                const Text('반복 횟수 (회)',
+                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _cellRepeatCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    suffixText: '회',
+                    suffixStyle: const TextStyle(color: Colors.white54),
+                    hintText: '1 ~ 100',
+                    hintStyle: const TextStyle(color: Colors.white24),
+                    enabledBorder: const OutlineInputBorder(
+                        borderSide:
+                            BorderSide(color: Colors.amber, width: 0.5)),
+                    focusedBorder: const OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.amber)),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 8),
+                // ★ 총 볼륨 계산 표시
+                Builder(builder: (ctx) {
+                  final vol =
+                      double.tryParse(_cellVolumeCtrl.text) ?? 0;
+                  final rep =
+                      int.tryParse(_cellRepeatCtrl.text) ?? 1;
+                  final total = vol * rep;
+                  final totalCells =
+                      total * session.cellsPerUL;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color:
+                              Colors.tealAccent.withValues(alpha: 0.4)),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('총 분주 볼륨',
+                                style: TextStyle(
+                                    color: Colors.tealAccent,
+                                    fontSize: 12)),
+                            Text(
+                              '${vol.toStringAsFixed(0)} μL × $rep회 = ${total.toStringAsFixed(0)} μL',
+                              style: const TextStyle(
+                                  color: Colors.tealAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('총 분주 세포',
+                                style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 11)),
+                            Text(
+                              _formatCellCount(totalCells),
+                              style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
                 }),
               ],
             ),
@@ -1006,31 +1146,57 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
   void _goToIncubator() {
     final session = _session;
     session.startIncubation();
-    // 히스토리 저장
+    // 히스토리 저장 + CultureSession 등록
     final cell = _currentCell;
     final dish = _selectedDish;
     if (cell != null && dish != null) {
+      final now = DateTime.now();
+      final wellRecords = session.wells
+          .where((w) => w.hasCell)
+          .map((w) => WellRecord(
+                index: w.wellIndex,
+                cellCount: w.cellCount,
+                mediumVolume: w.mediumVolume,
+                cellVolume: w.cellVolume,
+                mediumName: w.mediumName,
+              ))
+          .toList();
+
       final record = ExperimentRecord(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: now.millisecondsSinceEpoch.toString(),
         cellTypeId: cell.id,
         cellTypeName: cell.name,
         dishTypeId: dish.id,
         dishTypeName: dish.name,
         medium: _selectedMedium ?? '-',
         mediumCorrect: _mediumCorrect,
-        startTime: DateTime.now(),
-        wells: session.wells
-            .where((w) => w.hasCell)
-            .map((w) => WellRecord(
-                  index: w.wellIndex,
-                  cellCount: w.cellCount,
-                  mediumVolume: w.mediumVolume,
-                  cellVolume: w.cellVolume,
-                  mediumName: w.mediumName,
-                ))
-            .toList(),
+        startTime: now,
+        wells: wellRecords,
       );
-      context.read<AppState>().addHistory(record);
+      final appState = context.read<AppState>();
+      appState.addHistory(record);
+
+      // CultureSession 등록 (최대 10개 제한 자동 처리됨)
+      final userId = appState.currentUser?.id ?? 'anonymous';
+      final cultureSession = CultureSession(
+        id: now.millisecondsSinceEpoch.toString(),
+        userId: userId,
+        cellTypeId: cell.id,
+        cellTypeName: cell.name,
+        dishTypeId: dish.id,
+        dishTypeName: dish.name,
+        medium: _selectedMedium ?? '-',
+        mediumCorrect: _mediumCorrect,
+        startTime: now,
+        totalCellCount: session.wells
+            .fold(0.0, (sum, w) => sum + w.cellCount),
+        seededWellCount:
+            session.wells.where((w) => w.hasCell).length,
+        temp: cell.optimalTemp,
+        co2: cell.co2Percent,
+        humidity: 95.0,
+      );
+      appState.addCultureSession(cultureSession);
     }
 
     Navigator.pushReplacement(
