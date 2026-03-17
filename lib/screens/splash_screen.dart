@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
@@ -272,6 +273,7 @@ class _RegisterFormState extends State<_RegisterForm> {
   String? _pendingUserId;
   bool _isCheckingStatus = false;
   bool _initialized = false;
+  Timer? _pollTimer; // 자동 승인 상태 폴링 타이머
 
   // ★ 실험실 정보 저장 체크박스 상태
   bool _saveInfo = false;
@@ -301,6 +303,12 @@ class _RegisterFormState extends State<_RegisterForm> {
   void initState() {
     super.initState();
     _restorePendingState();
+    // 10초마다 자동으로 승인 상태 확인
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_pendingUserId != null && mounted) {
+        _autoCheckStatus();
+      }
+    });
   }
 
   /// 앱 시작 시:
@@ -355,6 +363,7 @@ class _RegisterFormState extends State<_RegisterForm> {
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _nameCtrl.dispose();
     _affCtrl.dispose();
     _empIdCtrl.dispose();
@@ -421,6 +430,49 @@ class _RegisterFormState extends State<_RegisterForm> {
     }
   }
 
+  /// 자동 폴링용 (UI 변화 없이 조용히 확인)
+  Future<void> _autoCheckStatus() async {
+    if (_pendingUserId == null || !mounted) return;
+    final auth = context.read<AuthService>();
+    final user = await auth.checkApprovalStatus(_pendingUserId!);
+    if (user == null || !mounted) return;
+    if (user.status == UserStatus.approved) {
+      _pollTimer?.cancel();
+      await context.read<AppState>().setCurrentUser(user);
+      await auth.clearPendingUserId();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ 관리자 승인이 완료되었습니다! 입장합니다.'),
+            backgroundColor: Colors.teal,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => MainScreen()),
+          );
+        }
+      }
+    } else if (user.status == UserStatus.rejected) {
+      _pollTimer?.cancel();
+      if (mounted) {
+        await auth.clearPendingUserId();
+        setState(() => _pendingUserId = null);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('신청이 거절되었습니다. 다시 신청해 주세요.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Future<void> _checkStatus() async {
     if (_pendingUserId == null) return;
     setState(() => _isCheckingStatus = true);
@@ -432,6 +484,7 @@ class _RegisterFormState extends State<_RegisterForm> {
 
     if (user.status == UserStatus.approved) {
       if (!mounted) return;
+      _pollTimer?.cancel();
       await context.read<AppState>().setCurrentUser(user);
       await auth.clearPendingUserId();
       if (mounted) {
@@ -681,6 +734,76 @@ class _RegisterFormState extends State<_RegisterForm> {
     );
   }
 
+  void _showAdminLoginFromPending(BuildContext context) {
+    final idCtrl = TextEditingController();
+    final pwCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('관리자 로그인',
+            style: TextStyle(color: Color(0xFF00E5FF))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: idCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: '아이디',
+                labelStyle: TextStyle(color: Colors.white54),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF00E5FF))),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pwCtrl,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: '비밀번호',
+                labelStyle: TextStyle(color: Colors.white54),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF00E5FF))),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('취소',
+                  style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF)),
+            onPressed: () {
+              final auth = context.read<AuthService>();
+              if (auth.checkAdminLogin(idCtrl.text, pwCtrl.text)) {
+                Navigator.pop(ctx);
+                context.read<AppState>().loginAsAdmin();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AdminScreen()),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('아이디 또는 비밀번호가 올바르지 않습니다.')),
+                );
+              }
+            },
+            child: const Text('로그인',
+                style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPendingView() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -702,9 +825,22 @@ class _RegisterFormState extends State<_RegisterForm> {
           ),
           const SizedBox(height: 8),
           const Text(
-            '관리자 승인 후 실험실 입장이 가능합니다.\n승인 완료 후 아래 버튼을 눌러 확인하세요.',
+            '관리자 승인 후 실험실 입장이 가능합니다.\n승인되면 자동으로 입장됩니다.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 6),
+          // 자동 폴링 안내
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.sync, color: Colors.white38, size: 13),
+              const SizedBox(width: 4),
+              Text(
+                '10초마다 자동 확인 중...',
+                style: TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -723,15 +859,42 @@ class _RegisterFormState extends State<_RegisterForm> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('승인 상태 확인',
+                  : const Text('지금 바로 확인',
                       style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // 관리자인 경우 바로 로그인할 수 있도록
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(
+                    color: Color(0xFF00E5FF), width: 1),
+                foregroundColor: const Color(0xFF00E5FF),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.admin_panel_settings, size: 16),
+              label: const Text('관리자로 승인하기',
+                  style: TextStyle(fontSize: 13)),
+              onPressed: () => _showAdminLoginFromPending(context),
             ),
           ),
           TextButton(
             onPressed: () async {
+              _pollTimer?.cancel();
               final auth = context.read<AuthService>();
               await auth.clearPendingUserId();
               setState(() => _pendingUserId = null);
+              // 새로 시작하면 폴링 재시작
+              _pollTimer = Timer.periodic(
+                  const Duration(seconds: 10), (_) {
+                if (_pendingUserId != null && mounted) {
+                  _autoCheckStatus();
+                }
+              });
             },
             child: const Text('다시 입력',
                 style: TextStyle(color: Colors.white54)),

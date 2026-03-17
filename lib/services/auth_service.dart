@@ -1,11 +1,24 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/user_model.dart';
 
 class AuthService extends ChangeNotifier {
   static const String adminId = 'rmc2026';
   static const String adminPassword = '!rmc2026!';
+
+  // ── API 서버 주소 (웹 환경에서 현재 호스트의 8080 포트 사용) ──
+  static String get _apiBase {
+    if (kIsWeb) {
+      // 웹: 현재 페이지 호스트의 8080 포트
+      // (예: https://5060-xxx.sandbox.novita.ai → https://8080-xxx.sandbox.novita.ai)
+      final uri = Uri.base;
+      final host = uri.host.replaceFirst('5060-', '8080-');
+      return 'https://$host';
+    }
+    return 'http://localhost:8080';
+  }
 
   List<UserProfile> _pendingUsers = [];
   List<UserProfile> _approvedUsers = [];
@@ -17,7 +30,33 @@ class AuthService extends ChangeNotifier {
   List<UserProfile> get allUsers =>
       [..._pendingUsers, ..._approvedUsers, ..._rejectedUsers];
 
+  // ── 서버에서 전체 사용자 목록 로드 ─────────────────────────
   Future<void> loadUsers() async {
+    try {
+      final res = await http
+          .get(Uri.parse('$_apiBase/users'))
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final list = jsonDecode(res.body) as List;
+        final users = list
+            .map((e) => UserProfile.fromJson(e as Map<String, dynamic>))
+            .toList();
+        _pendingUsers =
+            users.where((u) => u.status == UserStatus.pending).toList();
+        _approvedUsers =
+            users.where((u) => u.status == UserStatus.approved).toList();
+        _rejectedUsers =
+            users.where((u) => u.status == UserStatus.rejected).toList();
+        notifyListeners();
+      }
+    } catch (e) {
+      // 서버 미연결 시 SharedPreferences 폴백
+      await _loadFromLocal();
+    }
+  }
+
+  // ── 로컬 폴백 (오프라인 상황) ───────────────────────────────
+  Future<void> _loadFromLocal() async {
     final prefs = await SharedPreferences.getInstance();
     final usersJson = prefs.getString('allUsers');
     if (usersJson != null) {
@@ -35,36 +74,27 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    final all = [..._pendingUsers, ..._approvedUsers, ..._rejectedUsers];
-    await prefs.setString(
-        'allUsers', jsonEncode(all.map((u) => u.toJson()).toList()));
-  }
-
   bool checkAdminLogin(String id, String password) {
     return id == adminId && password == adminPassword;
   }
 
-  /// pendingUserId를 SharedPreferences에 저장 (새로고침 후에도 유지)
+  // ── pendingUserId 로컬 저장 (브라우저별 본인 상태 추적용) ───
   Future<void> savePendingUserId(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('pendingUserId', userId);
   }
 
-  /// 저장된 pendingUserId 불러오기
   Future<String?> loadPendingUserId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('pendingUserId');
   }
 
-  /// pendingUserId 삭제 (승인/거절/재신청 시)
   Future<void> clearPendingUserId() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('pendingUserId');
   }
 
-  /// 동일 이름+소속 사용자 찾기 (중복 신청 방지)
+  /// 동일 이름+소속 사용자 찾기
   UserProfile? findExistingUser({
     required String name,
     required String affiliation,
@@ -80,24 +110,15 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// 사용자 등록 (중복 체크 포함)
-  /// 반환값: (userId, isExisting)
+  /// 사용자 등록 (서버에 POST)
   Future<(String, bool)> registerUser({
     required String name,
     required String affiliation,
     String employeeId = '',
     required UserRole role,
   }) async {
-    await loadUsers(); // 최신 상태 로드
+    await loadUsers(); // 최신 상태 확인
 
-    // ① 이미 동일 이름+소속으로 등록된 사용자 확인
-    final existing = findExistingUser(name: name, affiliation: affiliation);
-    if (existing != null) {
-      await savePendingUserId(existing.id);
-      return (existing.id, true);
-    }
-
-    // ② 신규 등록
     final id = 'user_${DateTime.now().millisecondsSinceEpoch}';
     final user = UserProfile(
       id: id,
@@ -108,14 +129,65 @@ class AuthService extends ChangeNotifier {
       status: UserStatus.pending,
       createdAt: DateTime.now(),
     );
+
+    try {
+      final res = await http
+          .post(
+            Uri.parse('$_apiBase/users'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(user.toJson()),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final returnedId = body['id'] as String;
+        final isExisting = body['isExisting'] as bool? ?? false;
+
+        if (!isExisting) {
+          _pendingUsers.add(user);
+          notifyListeners();
+        }
+        await savePendingUserId(returnedId);
+        return (returnedId, isExisting);
+      }
+    } catch (_) {
+      // 서버 미연결 시 로컬 폴백
+    }
+
+    // 폴백: 로컬에만 저장
+    final existing = findExistingUser(name: name, affiliation: affiliation);
+    if (existing != null) {
+      await savePendingUserId(existing.id);
+      return (existing.id, true);
+    }
     _pendingUsers.add(user);
-    await _saveUsers();
+    await _saveLocalFallback();
     await savePendingUserId(id);
     notifyListeners();
     return (id, false);
   }
 
+  Future<void> _saveLocalFallback() async {
+    final prefs = await SharedPreferences.getInstance();
+    final all = [..._pendingUsers, ..._approvedUsers, ..._rejectedUsers];
+    await prefs.setString(
+        'allUsers', jsonEncode(all.map((u) => u.toJson()).toList()));
+  }
+
+  /// 단일 사용자 상태 확인 (서버에서 GET)
   Future<UserProfile?> checkApprovalStatus(String userId) async {
+    try {
+      final res = await http
+          .get(Uri.parse('$_apiBase/users/$userId'))
+          .timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200 && res.body != 'null') {
+        return UserProfile.fromJson(
+            jsonDecode(res.body) as Map<String, dynamic>);
+      }
+    } catch (_) {
+      // 폴백: 로컬
+    }
     await loadUsers();
     try {
       return allUsers.firstWhere((u) => u.id == userId);
@@ -124,64 +196,45 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// 승인 (서버에 PUT)
   Future<void> approveUser(String userId) async {
-    final idx = _pendingUsers.indexWhere((u) => u.id == userId);
-    if (idx == -1) return;
-    final user = _pendingUsers.removeAt(idx);
-    final approved = UserProfile(
-      id: user.id,
-      name: user.name,
-      affiliation: user.affiliation,
-      employeeId: user.employeeId,
-      role: user.role,
-      status: UserStatus.approved,
-      createdAt: user.createdAt,
-    );
-    _approvedUsers.add(approved);
-    await _saveUsers();
-    notifyListeners();
+    await _updateUserStatus(userId, UserStatus.approved);
   }
 
-  /// 승인된 사용자의 접근 권한 취소 (Revoke)
-  Future<void> revokeUser(String userId) async {
-    final idx = _approvedUsers.indexWhere((u) => u.id == userId);
-    if (idx == -1) return;
-    final user = _approvedUsers.removeAt(idx);
-    final revoked = UserProfile(
-      id: user.id,
-      name: user.name,
-      affiliation: user.affiliation,
-      role: user.role,
-      status: UserStatus.rejected,
-      createdAt: user.createdAt,
-    );
-    _rejectedUsers.add(revoked);
-    await _saveUsers();
-    notifyListeners();
-  }
-
+  /// 거절 (서버에 PUT)
   Future<void> rejectUser(String userId) async {
-    final idx = _pendingUsers.indexWhere((u) => u.id == userId);
-    if (idx == -1) return;
-    final user = _pendingUsers.removeAt(idx);
-    final rejected = UserProfile(
-      id: user.id,
-      name: user.name,
-      affiliation: user.affiliation,
-      role: user.role,
-      status: UserStatus.rejected,
-      createdAt: user.createdAt,
-    );
-    _rejectedUsers.add(rejected);
-    await _saveUsers();
-    notifyListeners();
+    await _updateUserStatus(userId, UserStatus.rejected);
+  }
+
+  /// 접근 권한 취소 (서버에 PUT)
+  Future<void> revokeUser(String userId) async {
+    await _updateUserStatus(userId, UserStatus.rejected);
+  }
+
+  Future<void> _updateUserStatus(String userId, UserStatus status) async {
+    final statusStr = status == UserStatus.approved
+        ? 'approved'
+        : status == UserStatus.rejected
+            ? 'rejected'
+            : 'pending';
+    try {
+      await http
+          .put(
+            Uri.parse('$_apiBase/users/$userId'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'status': statusStr}),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // 로컬 폴백
+    }
+    // 로컬 메모리도 즉시 업데이트
+    await loadUsers();
   }
 
   // ─────────────────────────────────────────────
-  // 실험자 정보 저장/불러오기 (빠른 입장용)
+  // 실험자 정보 저장/불러오기 (빠른 입장용, 로컬에 저장)
   // ─────────────────────────────────────────────
-
-  /// 실험자 정보 저장 (이름, 소속, 직위, 저장 여부 플래그)
   Future<void> saveResearcherInfo({
     required String name,
     required String affiliation,
@@ -196,7 +249,6 @@ class AuthService extends ChangeNotifier {
     await prefs.setBool('info_saved', true);
   }
 
-  /// 저장된 실험자 정보 불러오기
   Future<Map<String, String>?> loadResearcherInfo() async {
     final prefs = await SharedPreferences.getInstance();
     final isSaved = prefs.getBool('info_saved') ?? false;
@@ -209,7 +261,6 @@ class AuthService extends ChangeNotifier {
     };
   }
 
-  /// 저장된 실험자 정보 삭제
   Future<void> clearResearcherInfo() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('saved_name');
@@ -219,7 +270,6 @@ class AuthService extends ChangeNotifier {
     await prefs.setBool('info_saved', false);
   }
 
-  /// 실험자 정보 저장 여부 확인
   Future<bool> isResearcherInfoSaved() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('info_saved') ?? false;

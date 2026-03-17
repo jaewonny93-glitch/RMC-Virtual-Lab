@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
@@ -13,6 +14,7 @@ class AdminScreen extends StatefulWidget {
 class _AdminScreenState extends State<AdminScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -21,10 +23,17 @@ class _AdminScreenState extends State<AdminScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AuthService>().loadUsers();
     });
+    // 5초마다 자동으로 승인 대기 목록 새로고침
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) {
+        context.read<AuthService>().loadUsers();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }
@@ -36,15 +45,40 @@ class _AdminScreenState extends State<AdminScreen>
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D1B2A),
         foregroundColor: Colors.white,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('관리자 패널',
-                style:
-                    TextStyle(color: Color(0xFF00E5FF), fontSize: 18)),
-            Text('분당서울대병원 재생의학센터',
-                style: TextStyle(color: Colors.white54, fontSize: 11)),
-          ],
+        title: Consumer<AuthService>(
+          builder: (_, auth, __) => Row(
+            children: [
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('관리자 패널',
+                      style: TextStyle(
+                          color: Color(0xFF00E5FF), fontSize: 18)),
+                  Text('분당서울대병원 재생의학센터',
+                      style:
+                          TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+              ),
+              if (auth.pendingUsers.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.amber,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '대기 ${auth.pendingUsers.length}명',
+                    style: const TextStyle(
+                        color: Colors.black,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
         actions: [
           IconButton(
