@@ -20,7 +20,8 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
   int _step = 0; // 0=dish선택, 1=파이펫선택, 2=배양액선택, 3=배양액분주, 4=세포분주, 5=완료
 
   CultureDishType? _selectedDish;
-  int? _selectedWellIndex;
+  // ★ 다중 well 선택 (Set)
+  final Set<int> _selectedWellIndices = {};
   PipetteType? _selectedPipette;
   String? _selectedMedium;
   bool _mediumCorrect = false;
@@ -329,13 +330,15 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
           label: '다음: 파이펫 선택',
           enabled: _selectedDish != null &&
               (_selectedDish!.wellCount == 1 ||
-                  _selectedWellIndex != null),
+                  _selectedWellIndices.isNotEmpty),
           onTap: () {
             final session = _session;
             session.dishTypeId = _selectedDish!.id;
             session.initWells(_selectedDish!.wellCount);
-            if (_selectedWellIndex != null) {
-              session.selectedWellIndex = _selectedWellIndex;
+            // 선택된 well 중 첫 번째를 기본 selectedWellIndex로 설정
+            if (_selectedWellIndices.isNotEmpty) {
+              session.selectedWellIndex =
+                  _selectedWellIndices.reduce((a, b) => a < b ? a : b);
             }
             setState(() => _step = 1);
           },
@@ -350,6 +353,7 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
     }
     final count = _selectedDish!.wellCount;
     final cols = count <= 12 ? (count ~/ 2) : (count <= 48 ? 6 : 12);
+    final allSelected = _selectedWellIndices.length == count;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -357,30 +361,92 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(
+            color: _selectedWellIndices.isNotEmpty
+                ? const Color(0xFF00E5FF).withValues(alpha: 0.5)
+                : Colors.white12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Well 선택',
-              style:
-                  TextStyle(color: Colors.white, fontSize: 13)),
-          const SizedBox(height: 8),
+          // 헤더: 선택 현황 + 전체 선택/해제 버튼
+          Row(
+            children: [
+              const Icon(Icons.grid_on,
+                  color: Color(0xFF00E5FF), size: 15),
+              const SizedBox(width: 6),
+              Text(
+                _selectedWellIndices.isEmpty
+                    ? 'Well 선택 (복수 선택 가능)'
+                    : '${_selectedWellIndices.length}개 선택됨',
+                style: TextStyle(
+                    color: _selectedWellIndices.isNotEmpty
+                        ? const Color(0xFF00E5FF)
+                        : Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              // 전체 선택 / 전체 해제 버튼
+              GestureDetector(
+                onTap: () => setState(() {
+                  if (allSelected) {
+                    _selectedWellIndices.clear();
+                  } else {
+                    _selectedWellIndices
+                        .addAll(List.generate(count, (i) => i));
+                  }
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: allSelected
+                        ? Colors.redAccent.withValues(alpha: 0.2)
+                        : const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: allSelected
+                            ? Colors.redAccent.withValues(alpha: 0.6)
+                            : const Color(0xFF00E5FF)
+                                .withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    allSelected ? '전체 해제' : '전체 선택',
+                    style: TextStyle(
+                        color: allSelected
+                            ? Colors.redAccent
+                            : const Color(0xFF00E5FF),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: cols,
               childAspectRatio: 1,
-              crossAxisSpacing: 4,
-              mainAxisSpacing: 4,
+              crossAxisSpacing: 5,
+              mainAxisSpacing: 5,
             ),
             itemCount: count,
             itemBuilder: (context, i) {
-              final sel = _selectedWellIndex == i;
+              final sel = _selectedWellIndices.contains(i);
               return GestureDetector(
-                onTap: () => setState(() => _selectedWellIndex = i),
-                child: Container(
+                onTap: () => setState(() {
+                  if (sel) {
+                    _selectedWellIndices.remove(i);
+                  } else {
+                    _selectedWellIndices.add(i);
+                  }
+                }),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: sel
@@ -389,14 +455,24 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                     border: Border.all(
                         color: sel
                             ? const Color(0xFF00E5FF)
-                            : Colors.white24),
+                            : Colors.white24,
+                        width: sel ? 2 : 1),
+                    boxShadow: sel
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF00E5FF)
+                                  .withValues(alpha: 0.4),
+                              blurRadius: 6,
+                            )
+                          ]
+                        : null,
                   ),
                   child: Center(
                     child: Text(
                       '${i + 1}',
                       style: TextStyle(
                           color: sel ? Colors.black : Colors.white38,
-                          fontSize: 8,
+                          fontSize: count > 24 ? 6 : 9,
                           fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -404,6 +480,23 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
               );
             },
           ),
+          // 선택된 well 번호 표시
+          if (_selectedWellIndices.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Well ${(List<int>.from(_selectedWellIndices)..sort()).map((i) => i + 1).join(', ')}',
+                style: const TextStyle(
+                    color: Color(0xFF00E5FF), fontSize: 11),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -690,7 +783,9 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
     final pipe = _selectedPipette;
     final dish = _selectedDish;
     if (pipe == null || dish == null) return const SizedBox.shrink();
-    final wellIdx = _selectedWellIndex ?? 0;
+    // 선택된 well 목록 (정렬)
+    final selectedWells = List<int>.from(_selectedWellIndices)..sort();
+    final wellIdx = selectedWells.isNotEmpty ? selectedWells.first : 0;
     final maxPipeVol = pipe.maxVolume;
     // ★ dish 표준/최대 용량 반영
     final dishMaxVolUL = dish.maxVolumeUL;
@@ -785,9 +880,13 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text('Well ${wellIdx + 1}에 분주할 배양액 용량 (μL)',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 13)),
+                Text(
+                  selectedWells.length > 1
+                      ? 'Well ${selectedWells.map((i) => i + 1).join(', ')} (${selectedWells.length}개)에 분주할 배양액 용량 (μL)'
+                      : 'Well ${wellIdx + 1}에 분주할 배양액 용량 (μL)',
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 13),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _mediumVolumeCtrl,
@@ -893,7 +992,10 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                     backgroundColor: Colors.orange));
                 return;
               }
-              _session.dispenseMediumToWell(wellIdx, vol);
+              // 선택된 모든 well에 배양액 분주
+              for (final idx in selectedWells) {
+                _session.dispenseMediumToWell(idx, vol);
+              }
               setState(() => _step = 4);
             },
           ),
@@ -958,9 +1060,13 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                       const AlwaysStoppedAnimation(Colors.tealAccent),
                 ),
                 const SizedBox(height: 12),
-                Text('Well ${wellIdx + 1}에 넣을 세포 용량 (μL)',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 13)),
+                Text(
+                  _selectedWellIndices.length > 1
+                      ? 'Well ${(List<int>.from(_selectedWellIndices)..sort()).map((i) => i + 1).join(', ')} (${_selectedWellIndices.length}개)에 넣을 세포 용량 (μL)'
+                      : 'Well ${wellIdx + 1}에 넣을 세포 용량 (μL)',
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 13),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _cellVolumeCtrl,
@@ -1074,8 +1180,14 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                       );
                       return;
                     }
-                    final ok = session.dispenseCellsToWell(wellIdx, vol);
-                    if (ok) {
+                    // 선택된 모든 well에 세포 분주
+                    final sortedWells = List<int>.from(_selectedWellIndices)..sort();
+                    bool allOk = true;
+                    for (final idx in sortedWells) {
+                      final ok = session.dispenseCellsToWell(idx, vol);
+                      if (!ok) { allOk = false; break; }
+                    }
+                    if (allOk) {
                       setState(() => _step = 5);
                     }
                   },
@@ -1152,7 +1264,7 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
               onPressed: () {
                 setState(() {
                   _step = 0;
-                  _selectedWellIndex = null;
+                  _selectedWellIndices.clear();
                   _mediumVolumeCtrl.clear();
                   _cellVolumeCtrl.clear();
                 });
@@ -1231,6 +1343,7 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
         temp: cell.optimalTemp,
         co2: cell.co2Percent,
         humidity: 95.0,
+        passageNumber: session.passageNumber, // ★ P번호 이어받기
       );
       appState.addCultureSession(cultureSession);
     }
@@ -1249,6 +1362,10 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
   Widget _buildDishPreview(int wellIdx, bool showFilled) {
     final dish = _selectedDish;
     if (dish == null) return const SizedBox.shrink();
+    // 선택된 모든 well 인덱스 (프리뷰 하이라이트용)
+    final selWells = _selectedWellIndices.isNotEmpty
+        ? _selectedWellIndices
+        : {wellIdx};
     if (dish.wellCount == 1) {
       return Container(
         width: 80,
@@ -1290,7 +1407,7 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
         ),
         itemCount: dish.wellCount,
         itemBuilder: (_, i) {
-          final isCur = i == wellIdx;
+          final isCur = selWells.contains(i);
           final session = context.watch<ExperimentSession>();
           final hasCells = i < session.wells.length &&
               session.wells[i].hasCell;
