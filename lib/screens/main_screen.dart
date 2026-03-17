@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import 'home_screen.dart';
 import 'lab/lab_screen.dart';
-import 'graph_screen.dart';
+import 'library_screen.dart';
 import 'data_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
@@ -33,7 +33,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const LabScreen(),
-    const GraphScreen(),
+    const LibraryScreen(),
     const DataScreen(),
     const HistoryScreen(),
     const SettingsScreen(),
@@ -118,9 +118,9 @@ class _MainScreenState extends State<MainScreen> {
                 activeIcon: Icon(Icons.science, size: 22),
                 label: 'Lab'),
             BottomNavigationBarItem(
-                icon: Icon(Icons.show_chart_outlined, size: 22),
-                activeIcon: Icon(Icons.show_chart, size: 22),
-                label: 'Graph'),
+                icon: Icon(Icons.menu_book_outlined, size: 22),
+                activeIcon: Icon(Icons.menu_book, size: 22),
+                label: 'Library'),
             BottomNavigationBarItem(
                 icon: Icon(Icons.folder_outlined, size: 22),
                 activeIcon: Icon(Icons.folder, size: 22),
