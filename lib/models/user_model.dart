@@ -43,19 +43,46 @@ class UserProfile {
         'affiliation': affiliation,
         'employeeId': employeeId,
         'role': role.index,
-        'status': status.index,
+        'status': status.name, // 문자열로 저장 ("pending","approved","rejected")
         'createdAt': createdAt.toIso8601String(),
       };
 
-  factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        affiliation: json['affiliation'] as String,
-        employeeId: json['employeeId'] as String? ?? '',
-        role: UserRole.values[json['role'] as int],
-        status: UserStatus.values[json['status'] as int],
-        createdAt: DateTime.parse(json['createdAt'] as String),
-      );
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    // status: 숫자(0,1,2) 또는 문자열("pending","approved","rejected") 모두 처리
+    final rawStatus = json['status'];
+    UserStatus status;
+    if (rawStatus is int) {
+      status = UserStatus.values[rawStatus];
+    } else {
+      switch (rawStatus.toString()) {
+        case 'approved': status = UserStatus.approved; break;
+        case 'rejected': status = UserStatus.rejected; break;
+        default:         status = UserStatus.pending;
+      }
+    }
+    // role: 숫자 또는 문자열 모두 처리
+    final rawRole = json['role'];
+    UserRole role;
+    if (rawRole is int) {
+      role = UserRole.values[rawRole];
+    } else {
+      switch (rawRole.toString()) {
+        case 'seniorResearcher': role = UserRole.seniorResearcher; break;
+        case 'professor':        role = UserRole.professor; break;
+        case 'other':            role = UserRole.other; break;
+        default:                 role = UserRole.researcher;
+      }
+    }
+    return UserProfile(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      affiliation: json['affiliation'] as String,
+      employeeId: json['employeeId'] as String? ?? '',
+      role: role,
+      status: status,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
 }
 
 class ExperimentRecord {
@@ -232,6 +259,7 @@ class CultureSession {
   final double co2;
   final double humidity;
   bool isActive;
+  final int passageNumber; // P1, P2, P3 ...
 
   CultureSession({
     required this.id,
@@ -249,6 +277,7 @@ class CultureSession {
     this.co2 = 5.0,
     this.humidity = 95.0,
     this.isActive = true,
+    this.passageNumber = 1,
   });
 
   Duration get elapsed => DateTime.now().difference(startTime);
@@ -269,6 +298,7 @@ class CultureSession {
         'co2': co2,
         'humidity': humidity,
         'isActive': isActive,
+        'passageNumber': passageNumber,
       };
 
   factory CultureSession.fromJson(Map<String, dynamic> json) => CultureSession(
@@ -287,6 +317,7 @@ class CultureSession {
         co2: (json['co2'] as num?)?.toDouble() ?? 5.0,
         humidity: (json['humidity'] as num?)?.toDouble() ?? 95.0,
         isActive: json['isActive'] as bool? ?? true,
+        passageNumber: json['passageNumber'] as int? ?? 1,
       );
 }
 
