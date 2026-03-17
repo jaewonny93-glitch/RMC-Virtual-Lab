@@ -81,6 +81,11 @@ class ExperimentRecord {
     this.savedToData = false,
   });
 
+  double get totalCells =>
+      wells.fold(0, (sum, w) => sum + w.cellCount);
+
+  int get seededWells => wells.where((w) => w.cellCount > 0).length;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'cellTypeId': cellTypeId,

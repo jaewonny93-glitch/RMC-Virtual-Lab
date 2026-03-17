@@ -140,6 +140,24 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 승인된 사용자의 접근 권한 취소 (Revoke)
+  Future<void> revokeUser(String userId) async {
+    final idx = _approvedUsers.indexWhere((u) => u.id == userId);
+    if (idx == -1) return;
+    final user = _approvedUsers.removeAt(idx);
+    final revoked = UserProfile(
+      id: user.id,
+      name: user.name,
+      affiliation: user.affiliation,
+      role: user.role,
+      status: UserStatus.rejected,
+      createdAt: user.createdAt,
+    );
+    _rejectedUsers.add(revoked);
+    await _saveUsers();
+    notifyListeners();
+  }
+
   Future<void> rejectUser(String userId) async {
     final idx = _pendingUsers.indexWhere((u) => u.id == userId);
     if (idx == -1) return;

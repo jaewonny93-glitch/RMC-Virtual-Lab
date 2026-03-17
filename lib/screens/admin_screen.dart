@@ -133,10 +133,61 @@ class _ApprovedUsersTab extends StatelessWidget {
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: users.length,
-          itemBuilder: (context, i) =>
-              _UserCard(user: users[i], showActions: false),
+          itemBuilder: (context, i) => _UserCard(
+            user: users[i],
+            showActions: false,
+            onRevoke: () => _confirmRevoke(context, auth, users[i]),
+          ),
         );
       },
+    );
+  }
+
+  void _confirmRevoke(
+      BuildContext context, AuthService auth, UserProfile user) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.block, color: Colors.redAccent, size: 22),
+            const SizedBox(width: 8),
+            const Text('접근 권한 취소',
+                style: TextStyle(color: Colors.redAccent, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          '${user.name} (${user.affiliation})의 접근 권한을 취소하시겠습니까?\n\n취소 후 해당 사용자는 앱에 접근할 수 없습니다.',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child:
+                const Text('취소', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white),
+            onPressed: () {
+              auth.revokeUser(user.id);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content:
+                      Text('${user.name}의 접근 권한이 취소되었습니다.'),
+                  backgroundColor: Colors.redAccent,
+                ),
+              );
+            },
+            child: const Text('권한 취소',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -146,12 +197,14 @@ class _UserCard extends StatelessWidget {
   final bool showActions;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
+  final VoidCallback? onRevoke;
 
   const _UserCard({
     required this.user,
     required this.showActions,
     this.onApprove,
     this.onReject,
+    this.onRevoke,
   });
 
   @override
@@ -233,6 +286,23 @@ class _UserCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ] else ...[
+            // 승인된 사용자 - 접근 권한 취소 버튼
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.6)),
+                  foregroundColor: Colors.redAccent,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                icon: const Icon(Icons.block, size: 16),
+                label: const Text('접근 권한 취소',
+                    style: TextStyle(fontSize: 12)),
+                onPressed: onRevoke,
+              ),
             ),
           ],
         ],
