@@ -1,0 +1,41 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+*.ipr
+*.iws
+.idea/
+*.swp
+*.swo
+
+# Android
+**/android/gradlew
+**/android/gradlew.bat
+**/android/.gradle
+**/android/captures/
+**/android/local.properties
+**/android/key.properties
+*.jks
+
+# iOS
+**/ios/.generated/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# Firebase (보안)
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+
+# Misc
+*.log
+.DS_Store
+coverage/

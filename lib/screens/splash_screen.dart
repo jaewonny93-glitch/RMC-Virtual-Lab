@@ -1,0 +1,740 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
+import 'main_screen.dart';
+import 'admin_screen.dart';
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1500));
+    _slideController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200));
+    _fadeAnim =
+        CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+    _slideAnim = Tween<Offset>(
+            begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(
+            CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _fadeController.forward();
+      _slideController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset('assets/images/lab_background.jpg', fit: BoxFit.cover),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.3),
+                  Colors.black.withValues(alpha: 0.75),
+                ],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: SlideTransition(
+                position: _slideAnim,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 40),
+                      // 로고
+                      Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: const Color(0xFF00E5FF), width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              spreadRadius: 4,
+                            )
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset('assets/icons/app_icon.png',
+                              fit: BoxFit.cover),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        '분당서울대학교병원',
+                        style: TextStyle(
+                          color: Color(0xFF00E5FF),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const Text(
+                        '재생의학센터',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Regenerative Medicine Center',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const Divider(
+                          color: Color(0xFF00E5FF), thickness: 0.5, height: 30),
+                      const Text(
+                        'RMC Virtual Lab',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                      const Text(
+                        'Regenerative Medicine Center · Cell Lab',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      // 입력 폼
+                      _RegisterForm(),
+                      const SizedBox(height: 16),
+                      // 관리자 버튼
+                      TextButton(
+                        onPressed: () =>
+                            _showAdminLogin(context),
+                        child: const Text(
+                          '관리자 로그인',
+                          style: TextStyle(
+                              color: Color(0xFF00E5FF), fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAdminLogin(BuildContext context) {
+    final idCtrl = TextEditingController();
+    final pwCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B2A),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('관리자 로그인',
+            style: TextStyle(color: Color(0xFF00E5FF))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: idCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: '아이디',
+                labelStyle: TextStyle(color: Colors.white54),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF00E5FF))),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pwCtrl,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: '비밀번호',
+                labelStyle: TextStyle(color: Colors.white54),
+                enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Color(0xFF00E5FF))),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('취소',
+                  style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF)),
+            onPressed: () {
+              final auth = context.read<AuthService>();
+              if (auth.checkAdminLogin(idCtrl.text, pwCtrl.text)) {
+                Navigator.pop(ctx);
+                context.read<AppState>().loginAsAdmin();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AdminScreen()),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('아이디 또는 비밀번호가 올바르지 않습니다.')),
+                );
+              }
+            },
+            child: const Text('로그인',
+                style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RegisterForm extends StatefulWidget {
+  @override
+  State<_RegisterForm> createState() => _RegisterFormState();
+}
+
+class _RegisterFormState extends State<_RegisterForm> {
+  final _nameCtrl = TextEditingController();
+  final _affCtrl = TextEditingController();
+  UserRole _selectedRole = UserRole.researcher;
+  bool _isLoading = false;
+  String? _pendingUserId;
+  bool _isCheckingStatus = false;
+  bool _initialized = false;
+
+  // ★ 실험실 정보 저장 체크박스 상태
+  bool _saveInfo = false;
+
+  final List<(UserRole, String)> _roles = [
+    (UserRole.researcher, '연구원'),
+    (UserRole.seniorResearcher, '선임연구원'),
+    (UserRole.professor, '교수'),
+    (UserRole.other, '기타'),
+  ];
+
+  // 직위 문자열 ↔ UserRole 변환
+  static const Map<String, UserRole> _roleMap = {
+    'researcher': UserRole.researcher,
+    'seniorResearcher': UserRole.seniorResearcher,
+    'professor': UserRole.professor,
+    'other': UserRole.other,
+  };
+  static const Map<UserRole, String> _roleToStr = {
+    UserRole.researcher: 'researcher',
+    UserRole.seniorResearcher: 'seniorResearcher',
+    UserRole.professor: 'professor',
+    UserRole.other: 'other',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _restorePendingState();
+  }
+
+  /// 앱 시작 시:
+  /// 1) 이미 승인된 계정이면 바로 메인 진입
+  /// 2) 대기 중 ID가 있으면 대기 화면 표시
+  /// 3) 저장된 실험자 정보가 있으면 폼에 자동 입력 + 체크박스 ON
+  Future<void> _restorePendingState() async {
+    final auth = context.read<AuthService>();
+    await auth.loadUsers();
+
+    // ─── 승인 상태 복원 ───
+    final savedId = await auth.loadPendingUserId();
+    if (savedId != null && mounted) {
+      final user = await auth.checkApprovalStatus(savedId);
+      if (user != null) {
+        if (user.status == UserStatus.approved) {
+          if (!mounted) return;
+          await context.read<AppState>().setCurrentUser(user);
+          await auth.clearPendingUserId();
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const MainScreen()),
+            );
+          }
+          return;
+        } else if (user.status == UserStatus.rejected) {
+          await auth.clearPendingUserId();
+        } else {
+          setState(() => _pendingUserId = savedId);
+        }
+      } else {
+        await auth.clearPendingUserId();
+      }
+    }
+
+    // ─── 저장된 실험자 정보 복원 ───
+    final saved = await auth.loadResearcherInfo();
+    if (saved != null && mounted) {
+      setState(() {
+        _affCtrl.text = saved['affiliation'] ?? '';
+        _nameCtrl.text = saved['name'] ?? '';
+        _selectedRole =
+            _roleMap[saved['role']] ?? UserRole.researcher;
+        _saveInfo = true; // 이미 저장된 상태 → 체크 ON
+      });
+    }
+
+    if (mounted) setState(() => _initialized = true);
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _affCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_nameCtrl.text.trim().isEmpty || _affCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('소속과 성함을 모두 입력해 주세요.')),
+      );
+      return;
+    }
+    setState(() => _isLoading = true);
+    final auth = context.read<AuthService>();
+
+    // ─── 실험실 정보 저장 처리 ───
+    if (_saveInfo) {
+      await auth.saveResearcherInfo(
+        name: _nameCtrl.text.trim(),
+        affiliation: _affCtrl.text.trim(),
+        role: _roleToStr[_selectedRole] ?? 'researcher',
+      );
+    } else {
+      await auth.clearResearcherInfo();
+    }
+
+    final (userId, isExisting) = await auth.registerUser(
+      name: _nameCtrl.text.trim(),
+      affiliation: _affCtrl.text.trim(),
+      role: _selectedRole,
+    );
+
+    // 이미 승인된 계정이면 바로 진입
+    final user = await auth.checkApprovalStatus(userId);
+    if (user != null && user.status == UserStatus.approved) {
+      if (!mounted) return;
+      await context.read<AppState>().setCurrentUser(user);
+      await auth.clearPendingUserId();
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+      _pendingUserId = userId;
+      _initialized = true;
+    });
+
+    if (isExisting && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('이미 신청된 계정입니다. 관리자 승인을 기다려 주세요.'),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    }
+  }
+
+  Future<void> _checkStatus() async {
+    if (_pendingUserId == null) return;
+    setState(() => _isCheckingStatus = true);
+    final auth = context.read<AuthService>();
+    final user = await auth.checkApprovalStatus(_pendingUserId!);
+    setState(() => _isCheckingStatus = false);
+
+    if (user == null) return;
+
+    if (user.status == UserStatus.approved) {
+      if (!mounted) return;
+      await context.read<AppState>().setCurrentUser(user);
+      await auth.clearPendingUserId();
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+        );
+      }
+    } else if (user.status == UserStatus.rejected) {
+      await auth.clearPendingUserId();
+      setState(() => _pendingUserId = null);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('승인이 거절되었습니다. 관리자에게 문의하세요.'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('아직 승인 대기 중입니다. 잠시 후 다시 확인해 주세요.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_initialized && _pendingUserId == null) {
+      return const SizedBox(
+        height: 80,
+        child: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF00E5FF), strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+    if (_pendingUserId != null) return _buildPendingView();
+    return _buildFormView();
+  }
+
+  Widget _buildFormView() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ─── 헤더 ───
+          Row(
+            children: [
+              const Icon(Icons.science, color: Color(0xFF00E5FF), size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                '실험자 정보 입력',
+                style: TextStyle(
+                    color: Color(0xFF00E5FF),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              // ★ 저장된 정보 빠른 입장 뱃지
+              if (_saveInfo)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.flash_on,
+                          color: Color(0xFF00E5FF), size: 12),
+                      SizedBox(width: 2),
+                      Text('빠른 입장',
+                          style: TextStyle(
+                              color: Color(0xFF00E5FF), fontSize: 10)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ─── 소속 / 성함 입력 ───
+          _buildTextField(_affCtrl, '소속', Icons.business),
+          const SizedBox(height: 12),
+          _buildTextField(_nameCtrl, '성함', Icons.person),
+          const SizedBox(height: 12),
+
+          // ─── 직위 선택 ───
+          const Text('직위',
+              style: TextStyle(color: Colors.white54, fontSize: 13)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: _roles.map((r) {
+              final selected = _selectedRole == r.$1;
+              return ChoiceChip(
+                label: Text(r.$2,
+                    style: TextStyle(
+                        color: selected ? Colors.black : Colors.white70,
+                        fontSize: 12)),
+                selected: selected,
+                selectedColor: const Color(0xFF00E5FF),
+                backgroundColor: Colors.white12,
+                onSelected: (_) => setState(() => _selectedRole = r.$1),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+
+          // ─── ★ 실험실 정보 저장 체크박스 ───
+          GestureDetector(
+            onTap: () async {
+              setState(() => _saveInfo = !_saveInfo);
+              // 체크 해제 시 저장 정보 삭제
+              if (!_saveInfo) {
+                final auth = context.read<AuthService>();
+                await auth.clearResearcherInfo();
+              }
+            },
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _saveInfo
+                    ? const Color(0xFF00E5FF).withValues(alpha: 0.1)
+                    : Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _saveInfo
+                      ? const Color(0xFF00E5FF).withValues(alpha: 0.6)
+                      : Colors.white24,
+                ),
+              ),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: _saveInfo
+                          ? const Color(0xFF00E5FF)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: _saveInfo
+                            ? const Color(0xFF00E5FF)
+                            : Colors.white38,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: _saveInfo
+                        ? const Icon(Icons.check,
+                            color: Colors.black, size: 16)
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '실험실 정보 저장',
+                          style: TextStyle(
+                            color: _saveInfo
+                                ? const Color(0xFF00E5FF)
+                                : Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          _saveInfo
+                              ? '다음 방문 시 정보를 자동으로 입력합니다'
+                              : '체크하면 다음 방문 시 빠른 입장이 가능합니다',
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _saveInfo ? Icons.flash_on : Icons.flash_off,
+                    color: _saveInfo
+                        ? const Color(0xFF00E5FF)
+                        : Colors.white24,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ─── 입장 신청 버튼 ───
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00E5FF),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _isLoading ? null : _submit,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _saveInfo ? Icons.flash_on : Icons.login,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _saveInfo ? '빠른 입장 신청' : '실험실 입장 신청',
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingView() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.hourglass_top, color: Colors.amber, size: 48),
+          const SizedBox(height: 12),
+          const Text(
+            '승인 대기 중',
+            style: TextStyle(
+                color: Colors.amber,
+                fontSize: 18,
+                fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '관리자 승인 후 실험실 입장이 가능합니다.\n승인 완료 후 아래 버튼을 눌러 확인하세요.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _isCheckingStatus ? null : _checkStatus,
+              child: _isCheckingStatus
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('승인 상태 확인',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final auth = context.read<AuthService>();
+              await auth.clearPendingUserId();
+              setState(() => _pendingUserId = null);
+            },
+            child: const Text('다시 입력',
+                style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+      TextEditingController ctrl, String label, IconData icon) {
+    return TextField(
+      controller: ctrl,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white54),
+        prefixIcon: Icon(icon, color: const Color(0xFF00E5FF), size: 20),
+        enabledBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF00E5FF), width: 0.5),
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderSide: BorderSide(color: Color(0xFF00E5FF), width: 1.5),
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.05),
+      ),
+    );
+  }
+}
