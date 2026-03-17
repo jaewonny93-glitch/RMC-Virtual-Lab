@@ -6,6 +6,7 @@ import '../../models/cell_model.dart';
 import '../../models/lab_model.dart';
 import '../../models/user_model.dart';
 import '../main_screen.dart';
+import '../graph_screen.dart';
 import 'clean_bench_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -982,22 +983,14 @@ class _IncubatorScreenState extends State<IncubatorScreen>
                 icon: const Icon(Icons.show_chart, size: 18),
                 label: const Text('그래프'),
                 onPressed: () {
-                  // MainScreen이 스택에 남아있으면 pop으로 돌아가면서 탭 전환
-                  // 아니면 새 MainScreen으로 이동
-                  final nav = Navigator.of(context);
-                  // Graph 탭(index 2)으로 전환 후 루트까지 pop
-                  if (mainScreenKey.currentState != null) {
-                    MainScreen.switchTab(2);
-                    nav.popUntil((route) => route.isFirst);
-                  } else {
-                    nav.pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => MainScreen()),
-                      (route) => false,
-                    );
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      MainScreen.switchTab(2);
-                    });
-                  }
+                  Navigator.of(context).push(
+                    PageRouteBuilder(
+                      pageBuilder: (_, __, ___) => const GraphScreen(),
+                      transitionsBuilder: (_, anim, __, child) =>
+                          FadeTransition(opacity: anim, child: child),
+                      transitionDuration: const Duration(milliseconds: 400),
+                    ),
+                  );
                 },
               ),
             ),
