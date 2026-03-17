@@ -141,7 +141,9 @@ class _DeepFreezerScreenState extends State<DeepFreezerScreen>
   }
 
   void _proceedWithCell(CellType cell) {
-    context.read<ExperimentSession>().cellTypeId = cell.id;
+    final session = context.read<ExperimentSession>();
+    session.cellTypeId = cell.id;
+    session.deepFreezerTime = DateTime.now();
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(

@@ -273,6 +273,19 @@ class ExperimentSession extends ChangeNotifier {
   bool isInIncubator = false;
   DateTime? incubatorStartTime;
   bool isMediumCorrect = false;
+  DateTime? deepFreezerTime;   // 딥프리저에서 꺼낸 시각
+
+  // 계대배양/세포계수 결과 저장용
+  double? lastPassageConfluence;
+  double? lastPassageTotalCells;
+  String? lastPassageReagent;
+  String? lastCentrifugeRpm;
+  String? lastCentrifugeXg;
+  String? lastCentrifugeDuration;
+  String? lastCentrifugeTemp;
+  double? lastCellCountCellsPerML;
+  double? lastCellCountViability;
+  double? lastCellCountRemainingUL;
 
   void reset() {
     cellTypeId = null;
@@ -286,6 +299,17 @@ class ExperimentSession extends ChangeNotifier {
     isInIncubator = false;
     incubatorStartTime = null;
     isMediumCorrect = false;
+    deepFreezerTime = null;
+    lastPassageConfluence = null;
+    lastPassageTotalCells = null;
+    lastPassageReagent = null;
+    lastCentrifugeRpm = null;
+    lastCentrifugeXg = null;
+    lastCentrifugeDuration = null;
+    lastCentrifugeTemp = null;
+    lastCellCountCellsPerML = null;
+    lastCellCountViability = null;
+    lastCellCountRemainingUL = null;
     notifyListeners();
   }
 
@@ -323,6 +347,29 @@ class ExperimentSession extends ChangeNotifier {
   void startIncubation() {
     isInIncubator = true;
     incubatorStartTime = DateTime.now();
+    notifyListeners();
+  }
+
+  /// CultureSession 데이터를 ExperimentSession에 복원 (홈화면 → 인큐베이터 이동용)
+  void loadFromCultureSession(dynamic s) {
+    cellTypeId = s.cellTypeId as String?;
+    dishTypeId = s.dishTypeId as String?;
+    selectedMedium = s.medium as String?;
+    isMediumCorrect = s.mediumCorrect as bool;
+    isInIncubator = true;
+    incubatorStartTime = s.startTime as DateTime?;
+    // well 데이터 복원: totalCellCount를 seededWellCount로 균등 분배
+    final count = (s.seededWellCount as int?) ?? 1;
+    final total = (s.totalCellCount as double?) ?? 0.0;
+    wells = List.generate(
+      count,
+      (i) => WellData(wellIndex: i)
+        ..cellCount = total / count
+        ..hasCell = true
+        ..hasMedium = true
+        ..mediumName = s.medium as String?,
+    );
+    vialRemainingUL = 0.0; // 이미 분주 완료
     notifyListeners();
   }
 }

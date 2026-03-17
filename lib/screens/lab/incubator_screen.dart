@@ -76,13 +76,13 @@ class _IncubatorScreenState extends State<IncubatorScreen>
     if (_cellDead) return;
 
     // 표준 교체 간격: 세포 배양 시 3일(72시간) 기준
-    // 시뮬레이션: 실제 시간 1분 = 배양 시간 1시간 (60배 가속)
-    final simulatedHours = _elapsed.inSeconds / 60.0;
+    // 실제 시간 1:1 (1초 real = 1초 sim)
+    final simulatedHours = _elapsed.inSeconds / 3600.0;
     final lastChangeHours = _lastMediumChange != null
-        ? DateTime.now().difference(_lastMediumChange!).inSeconds / 60.0
+        ? DateTime.now().difference(_lastMediumChange!).inSeconds / 3600.0
         : simulatedHours;
 
-    // 표준 교체 주기: 72시간 (시뮬레이션 72분)
+    // 표준 교체 주기: 72시간
     const standardChangeIntervalH = 72.0; // 시간
     const overdueMultiplier = 2.0; // 2배 초과 시 사멸
 
@@ -251,8 +251,8 @@ class _IncubatorScreenState extends State<IncubatorScreen>
         ? CellDatabase.findById(session.cellTypeId!)
         : null;
 
-    // 성장곡선 기반 현재 총 세포 수 추정
-    final simulatedHours = _elapsed.inSeconds.toDouble();
+    // 성장곡선 기반 현재 총 세포 수 추정 (실시간 1:1)
+    final simulatedHours = _elapsed.inSeconds / 3600.0;
     final doublings = cell != null
         ? simulatedHours / cell.doublingTimeHours
         : 0.0;
@@ -397,8 +397,8 @@ class _IncubatorScreenState extends State<IncubatorScreen>
         : null;
     if (cell == null) return 0;
 
-    // 시뮬레이션: 1초 real time = 1시간 배양
-    final simulatedHours = _elapsed.inSeconds.toDouble();
+    // 실시간 1:1 (1초 real = 1초 sim)
+    final simulatedHours = _elapsed.inSeconds / 3600.0;
     final doublings = simulatedHours / cell.doublingTimeHours;
 
     // dish 면적 파싱: "25 cm²" → 25.0 (well-plate: "3.8 cm²/well" → per well)
@@ -911,8 +911,8 @@ class _MediumChangeTimer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final since = DateTime.now().difference(lastChange);
-    // 시뮬레이션에서 초를 시간으로 변환
-    final simHours = since.inSeconds.toDouble();
+    // 실시간 1:1
+    final simHours = since.inSeconds / 3600.0;
     final h = simHours.floor();
     final m = ((simHours - h) * 60).floor();
     final isWarning = simHours >= 60;

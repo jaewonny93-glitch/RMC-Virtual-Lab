@@ -67,6 +67,20 @@ class ExperimentRecord {
   final List<WellRecord> wells;
   final bool savedToData;
 
+  // 실험노트 추가 필드
+  final DateTime? deepFreezerTime;       // 딥프리저에서 꺼낸 시각
+  final double? subcultureConfluence;    // 계대배양 시점 합류도 (%)
+  final double? subcultureTotalCells;    // 계대배양 시점 총 세포 수
+  final String? subcultureReagent;       // 탈착 시약
+  final String? centrifugeRpm;           // RPM 조건
+  final String? centrifugeXg;            // ×g 조건
+  final String? centrifugeDuration;      // 시간 조건
+  final String? centrifugeTemp;          // 원심분리 온도
+  final double? cellCountCellsPerML;     // 세포 농도 (×10⁶/mL)
+  final double? cellCountViability;      // 생존율 (%)
+  final double? cellCountRemainingUL;    // 잔여 현탁액 (µL)
+  final String? passageDishTypeName;     // 계대배양 후 dish
+
   const ExperimentRecord({
     required this.id,
     required this.cellTypeId,
@@ -79,6 +93,18 @@ class ExperimentRecord {
     this.endTime,
     required this.wells,
     this.savedToData = false,
+    this.deepFreezerTime,
+    this.subcultureConfluence,
+    this.subcultureTotalCells,
+    this.subcultureReagent,
+    this.centrifugeRpm,
+    this.centrifugeXg,
+    this.centrifugeDuration,
+    this.centrifugeTemp,
+    this.cellCountCellsPerML,
+    this.cellCountViability,
+    this.cellCountRemainingUL,
+    this.passageDishTypeName,
   });
 
   double get totalCells =>
@@ -98,6 +124,18 @@ class ExperimentRecord {
         'endTime': endTime?.toIso8601String(),
         'wells': wells.map((w) => w.toJson()).toList(),
         'savedToData': savedToData,
+        'deepFreezerTime': deepFreezerTime?.toIso8601String(),
+        'subcultureConfluence': subcultureConfluence,
+        'subcultureTotalCells': subcultureTotalCells,
+        'subcultureReagent': subcultureReagent,
+        'centrifugeRpm': centrifugeRpm,
+        'centrifugeXg': centrifugeXg,
+        'centrifugeDuration': centrifugeDuration,
+        'centrifugeTemp': centrifugeTemp,
+        'cellCountCellsPerML': cellCountCellsPerML,
+        'cellCountViability': cellCountViability,
+        'cellCountRemainingUL': cellCountRemainingUL,
+        'passageDishTypeName': passageDishTypeName,
       };
 
   factory ExperimentRecord.fromJson(Map<String, dynamic> json) =>
@@ -117,6 +155,25 @@ class ExperimentRecord {
             .map((w) => WellRecord.fromJson(w as Map<String, dynamic>))
             .toList(),
         savedToData: json['savedToData'] as bool? ?? false,
+        deepFreezerTime: json['deepFreezerTime'] != null
+            ? DateTime.parse(json['deepFreezerTime'] as String)
+            : null,
+        subcultureConfluence:
+            (json['subcultureConfluence'] as num?)?.toDouble(),
+        subcultureTotalCells:
+            (json['subcultureTotalCells'] as num?)?.toDouble(),
+        subcultureReagent: json['subcultureReagent'] as String?,
+        centrifugeRpm: json['centrifugeRpm'] as String?,
+        centrifugeXg: json['centrifugeXg'] as String?,
+        centrifugeDuration: json['centrifugeDuration'] as String?,
+        centrifugeTemp: json['centrifugeTemp'] as String?,
+        cellCountCellsPerML:
+            (json['cellCountCellsPerML'] as num?)?.toDouble(),
+        cellCountViability:
+            (json['cellCountViability'] as num?)?.toDouble(),
+        cellCountRemainingUL:
+            (json['cellCountRemainingUL'] as num?)?.toDouble(),
+        passageDishTypeName: json['passageDishTypeName'] as String?,
       );
 }
 
@@ -353,6 +410,23 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
         'history', jsonEncode(_history.map((e) => e.toJson()).toList()));
+    notifyListeners();
+  }
+
+  Future<void> updateHistoryRecord(ExperimentRecord updated) async {
+    final idx = _history.indexWhere((r) => r.id == updated.id);
+    if (idx != -1) {
+      _history[idx] = updated;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'history', jsonEncode(_history.map((e) => e.toJson()).toList()));
+      notifyListeners();
+    }
+  }
+
+  Future<void> removeCultureSession(String sessionId) async {
+    _cultureSessions.removeWhere((s) => s.id == sessionId);
+    await _saveCultureSessions();
     notifyListeners();
   }
 

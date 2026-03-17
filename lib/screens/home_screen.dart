@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
+import '../models/lab_model.dart';
+import 'lab/incubator_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -541,13 +543,13 @@ class _ActiveSessionCard extends StatelessWidget {
   final CultureSession session;
   const _ActiveSessionCard({required this.session});
 
-  void _showDetail(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0D1B2A),
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _SessionDetailSheet(session: session),
+  void _goToIncubator(BuildContext context) {
+    // ExperimentSession에 CultureSession 데이터 복원 후 인큐베이터로 이동
+    final expSession = context.read<ExperimentSession>();
+    expSession.loadFromCultureSession(session);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const IncubatorScreen()),
     );
   }
 
@@ -559,7 +561,7 @@ class _ActiveSessionCard extends StatelessWidget {
     final s = elapsed.inSeconds.remainder(60);
 
     return GestureDetector(
-      onTap: () => _showDetail(context),
+      onTap: () => _goToIncubator(context),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),

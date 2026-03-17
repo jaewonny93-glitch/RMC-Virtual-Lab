@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../models/user_model.dart';
 import '../services/update_service.dart';
 import 'splash_screen.dart';
@@ -63,6 +64,15 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 16),
               // ★ 업데이트 섹션
               _buildUpdateSection(context, updateSvc),
+              const SizedBox(height: 16),
+              _buildSection('홈화면 바로가기 (QR)', [
+                _SettingTile(
+                  icon: Icons.qr_code,
+                  title: 'iOS / Android 홈화면 추가',
+                  subtitle: 'QR 코드 스캔 → 브라우저에서 홈화면에 추가',
+                  onTap: () => _showQrDialog(context),
+                ),
+              ]),
               const SizedBox(height: 16),
               _buildSection('도움말', [
                 _SettingTile(
@@ -373,6 +383,205 @@ class SettingsScreen extends StatelessWidget {
           child: Column(children: tiles),
         ),
       ],
+    );
+  }
+
+  void _showQrDialog(BuildContext context) {
+    const appUrl =
+        'https://5060-iycj4bjlq9houffzbqtpb-de59bda9.sandbox.novita.ai';
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 헤더
+              Row(
+                children: [
+                  const Icon(Icons.qr_code_2,
+                      color: Color(0xFF00E5FF), size: 24),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('홈화면 바로가기 추가',
+                            style: TextStyle(
+                                color: Color(0xFF00E5FF),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15)),
+                        Text('카메라로 QR 스캔 후 홈화면에 추가하세요',
+                            style: TextStyle(
+                                color: Colors.white38, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white38),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const Divider(color: Colors.white12),
+              const SizedBox(height: 12),
+
+              // QR 코드 박스
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: QrImageView(
+                  data: appUrl,
+                  version: QrVersions.auto,
+                  size: 200,
+                  backgroundColor: Colors.white,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Color(0xFF0A1628),
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: Color(0xFF0A1628),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // iOS 안내
+              _buildOsGuide(
+                icon: Icons.phone_iphone,
+                os: 'iPhone (iOS)',
+                color: const Color(0xFF007AFF),
+                steps: [
+                  'Safari 브라우저로 링크 열기',
+                  '하단 공유 버튼(□↑) 탭',
+                  '"홈 화면에 추가" 선택',
+                  '"추가" 탭 → 완료!',
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Android 안내
+              _buildOsGuide(
+                icon: Icons.phone_android,
+                os: 'Android',
+                color: const Color(0xFF4CAF50),
+                steps: [
+                  'Chrome 브라우저로 링크 열기',
+                  '우측 상단 ⋮ 메뉴 탭',
+                  '"홈 화면에 추가" 선택',
+                  '"추가" 탭 → 완료!',
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // URL 텍스트
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.link,
+                        color: Colors.white24, size: 14),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        appUrl,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 9),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOsGuide({
+    required IconData icon,
+    required String os,
+    required Color color,
+    required List<String> steps,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(os,
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12)),
+                const SizedBox(height: 6),
+                ...steps.asMap().entries.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${e.key + 1}. ',
+                                style: TextStyle(
+                                    color: color,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold)),
+                            Expanded(
+                              child: Text(e.value,
+                                  style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 10)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

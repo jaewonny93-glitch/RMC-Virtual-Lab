@@ -554,13 +554,44 @@ class GrowthCurvePainter extends CustomPainter {
         Offset(0, size.height), Offset(size.width, size.height), axisPaint);
     canvas.drawLine(Offset(0, 0), Offset(0, size.height), axisPaint);
 
-    // 곡선 (48시간 범위)
+    // 곡선: 현재 경과 시간까지만 실시간으로 그림
     final maxHours = max(cell.doublingTimeHours * 3, 48.0);
-    final path = Path();
-    bool first = true;
+    // 현재 경과 시간 (실시간 1:1)
+    final elapsedHours = elapsed.inSeconds / 3600.0;
+    // 예측 배경선: 전체 범위를 희미하게 표시
+    final bgPath = Path();
+    bool bgFirst = true;
     for (int i = 0; i <= 100; i++) {
       final t = i / 100.0;
       final hours = t * maxHours;
+      final doublings = hours / cell.doublingTimeHours;
+      final cellCount = mediumCorrect
+          ? pow(2, doublings).toDouble()
+          : pow(0.7, doublings).toDouble();
+      final logVal = mediumCorrect
+          ? log(cellCount) / log(pow(2, maxHours / cell.doublingTimeHours))
+          : 1 - (1 - log(cellCount.clamp(0.001, 1)) / log(0.001)) * 0.8;
+      final x = t * size.width;
+      final y = size.height - logVal.clamp(0, 1) * size.height * 0.85;
+      if (bgFirst) { bgPath.moveTo(x, y); bgFirst = false; }
+      else { bgPath.lineTo(x, y); }
+    }
+    final bgPaint = Paint()
+      ..color = (mediumCorrect ? Colors.tealAccent : Colors.redAccent)
+          .withValues(alpha: 0.15)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    canvas.drawPath(bgPath, bgPaint);
+
+    // 실시간 곡선: 현재 시간까지만
+    final path = Path();
+    bool first = true;
+    final steps = 200;
+    for (int i = 0; i <= steps; i++) {
+      final t = i / steps.toDouble();
+      final hours = t * maxHours;
+      // 현재 경과 시간 초과 시 중단
+      if (hours > elapsedHours) break;
       final doublings = hours / cell.doublingTimeHours;
       final cellCount = mediumCorrect
           ? pow(2, doublings).toDouble()

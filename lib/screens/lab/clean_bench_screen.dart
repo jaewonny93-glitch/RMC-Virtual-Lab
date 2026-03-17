@@ -521,7 +521,26 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
   Widget _buildMediumSelection() {
     final cell = _currentCell;
     if (cell == null) return const SizedBox.shrink();
+
+    // 권장 배양액 자동 선택 (첫 진입 시)
+    if (_selectedMedium == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _selectedMedium = cell.medium;
+          _mediumCorrect =
+              cell.acceptableMediums.contains(cell.medium);
+        });
+      });
+    }
+
+    // 권장 배양액을 맨 위로, 나머지는 알파벳 순 정렬
     final allMediums = CellDatabase.allMediums;
+    final recommended = cell.medium;
+    final sorted = [
+      recommended,
+      ...allMediums.where((m) => m != recommended),
+    ];
 
     return Column(
       children: [
@@ -535,6 +554,34 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                       fontSize: 16,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
+              // 권장 배양액 안내 뱃지
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color:
+                      Colors.tealAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: Colors.tealAccent
+                          .withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.check_circle,
+                        color: Colors.tealAccent, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      '권장 배양액: $recommended (자동 선택됨)',
+                      style: const TextStyle(
+                          color: Colors.tealAccent,
+                          fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
               Text(
                 '⚠ 잘못된 배양액 선택 시 세포가 사멸합니다',
                 style: TextStyle(
@@ -546,11 +593,12 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: allMediums.length,
+            itemCount: sorted.length,
             itemBuilder: (context, i) {
-              final medium = allMediums[i];
+              final medium = sorted[i];
               final sel = _selectedMedium == medium;
               final isCorrect = cell.acceptableMediums.contains(medium);
+              final isRecommended = medium == recommended;
               return GestureDetector(
                 onTap: () => setState(() {
                   _selectedMedium = medium;
@@ -582,12 +630,36 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          medium,
-                          style: TextStyle(
-                              color:
-                                  sel ? Colors.white : Colors.white70,
-                              fontSize: 13),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                medium,
+                                style: TextStyle(
+                                    color: sel
+                                        ? Colors.white
+                                        : Colors.white70,
+                                    fontSize: 13),
+                              ),
+                            ),
+                            if (isRecommended) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.tealAccent
+                                      .withValues(alpha: 0.15),
+                                  borderRadius:
+                                      BorderRadius.circular(4),
+                                ),
+                                child: const Text('권장',
+                                    style: TextStyle(
+                                        color: Colors.tealAccent,
+                                        fontSize: 9)),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       if (sel)
@@ -625,9 +697,9 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
     final dishStdVolUL = dish.standardVolumeUL;
     final effectiveMax = maxPipeVol < dishMaxVolUL ? maxPipeVol : dishMaxVolUL;
 
-    // 표준 용량 자동 채우기
+    // 파이펫 최대 볼륨으로 기본값 설정 (처음 진입 시)
     if (_mediumVolumeCtrl.text.isEmpty) {
-      _mediumVolumeCtrl.text = dishStdVolUL.toInt().toString();
+      _mediumVolumeCtrl.text = maxPipeVol.toInt().toString();
     }
 
     return SingleChildScrollView(
@@ -836,6 +908,13 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
     final wellIdx = session.selectedWellIndex ?? 0;
     final remaining = session.vialRemainingUL;
 
+    // 파이펫 최대 볼륨을 기본값으로 설정 (처음 진입 시)
+    if (_cellVolumeCtrl.text.isEmpty && _selectedPipette != null) {
+      final maxVol = _selectedPipette!.maxVolume;
+      _cellVolumeCtrl.text =
+          maxVol <= remaining ? maxVol.toInt().toString() : remaining.toInt().toString();
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -911,40 +990,11 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                       style: const TextStyle(
                           color: Colors.white38, fontSize: 11));
                 }),
-                const SizedBox(height: 12),
-                // ★ 반복 횟수 입력
-                const Text('반복 횟수 (회)',
-                    style: TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: _cellRepeatCtrl,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    suffixText: '회',
-                    suffixStyle: const TextStyle(color: Colors.white54),
-                    hintText: '1 ~ 100',
-                    hintStyle: const TextStyle(color: Colors.white24),
-                    enabledBorder: const OutlineInputBorder(
-                        borderSide:
-                            BorderSide(color: Colors.amber, width: 0.5)),
-                    focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.amber)),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
                 const SizedBox(height: 8),
-                // ★ 총 볼륨 계산 표시
+                // 분주 세포 수 요약
                 Builder(builder: (ctx) {
-                  final vol =
-                      double.tryParse(_cellVolumeCtrl.text) ?? 0;
-                  final rep =
-                      int.tryParse(_cellRepeatCtrl.text) ?? 1;
-                  final total = vol * rep;
-                  final totalCells =
-                      total * session.cellsPerUL;
+                  final vol = double.tryParse(_cellVolumeCtrl.text) ?? 0;
+                  final totalCells = vol * session.cellsPerUL;
                   return Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 8),
@@ -952,42 +1002,28 @@ class _CleanBenchScreenState extends State<CleanBenchScreen>
                       color: Colors.teal.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color:
-                              Colors.tealAccent.withValues(alpha: 0.4)),
+                          color: Colors.tealAccent.withValues(alpha: 0.4)),
                     ),
-                    child: Column(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
+                        const Text('분주 볼륨',
+                            style: TextStyle(
+                                color: Colors.tealAccent, fontSize: 12)),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            const Text('총 분주 볼륨',
-                                style: TextStyle(
-                                    color: Colors.tealAccent,
-                                    fontSize: 12)),
                             Text(
-                              '${vol.toStringAsFixed(0)} μL × $rep회 = ${total.toStringAsFixed(0)} μL',
+                              '${vol.toStringAsFixed(0)} μL',
                               style: const TextStyle(
                                   color: Colors.tealAccent,
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.bold),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('총 분주 세포',
-                                style: TextStyle(
-                                    color: Colors.white54,
-                                    fontSize: 11)),
                             Text(
                               _formatCellCount(totalCells),
                               style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 11),
+                                  color: Colors.white54, fontSize: 10),
                             ),
                           ],
                         ),
