@@ -69,95 +69,114 @@ class _SplashScreenState extends State<SplashScreen>
               opacity: _fadeAnim,
               child: SlideTransition(
                 position: _slideAnim,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 40),
-                      // 로고
-                      Container(
-                        width: 90,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                              color: const Color(0xFF00E5FF), width: 2),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  const Color(0xFF00E5FF).withValues(alpha: 0.3),
-                              blurRadius: 20,
-                              spreadRadius: 4,
-                            )
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 화면 높이에 따라 크기 동적 조절
+                    final sh = constraints.maxHeight;
+                    final logoSize = sh < 650 ? 56.0 : sh < 750 ? 68.0 : 80.0;
+                    final topPad = sh < 650 ? 12.0 : sh < 750 ? 20.0 : 28.0;
+                    final titleFs = sh < 650 ? 14.0 : sh < 750 ? 16.0 : 18.0;
+                    final subFs = sh < 650 ? 17.0 : sh < 750 ? 19.0 : 22.0;
+                    final rmcFs = sh < 650 ? 20.0 : sh < 750 ? 23.0 : 26.0;
+                    final divH = sh < 650 ? 16.0 : sh < 750 ? 20.0 : 26.0;
+                    final gap1 = sh < 650 ? 8.0 : sh < 750 ? 12.0 : 16.0;
+                    final gap2 = sh < 650 ? 14.0 : sh < 750 ? 20.0 : 28.0;
+                    return SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
+                        child: Column(
+                          children: [
+                            SizedBox(height: topPad),
+                            // 로고
+                            Container(
+                              width: logoSize,
+                              height: logoSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: const Color(0xFF00E5FF), width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF00E5FF)
+                                        .withValues(alpha: 0.3),
+                                    blurRadius: 16,
+                                    spreadRadius: 3,
+                                  )
+                                ],
+                              ),
+                              child: ClipOval(
+                                child: Image.asset('assets/icons/app_icon.png',
+                                    fit: BoxFit.cover),
+                              ),
+                            ),
+                            SizedBox(height: gap1),
+                            Text(
+                              '분당서울대학교병원',
+                              style: TextStyle(
+                                color: const Color(0xFF00E5FF),
+                                fontSize: titleFs,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            Text(
+                              '재생의학센터',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: subFs,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 3,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Regenerative Medicine Center',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            Divider(
+                                color: const Color(0xFF00E5FF),
+                                thickness: 0.5,
+                                height: divH),
+                            Text(
+                              'RMC Virtual Lab',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: rmcFs,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            const Text(
+                              'Cell Lab Simulator',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                            SizedBox(height: gap2),
+                            // 입력 폼
+                            _RegisterForm(),
+                            const SizedBox(height: 8),
+                            // 관리자 버튼
+                            TextButton(
+                              onPressed: () => _showAdminLogin(context),
+                              child: const Text(
+                                '관리자 로그인',
+                                style: TextStyle(
+                                    color: Color(0xFF00E5FF), fontSize: 13),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
                           ],
                         ),
-                        child: ClipOval(
-                          child: Image.asset('assets/icons/app_icon.png',
-                              fit: BoxFit.cover),
-                        ),
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        '분당서울대학교병원',
-                        style: TextStyle(
-                          color: Color(0xFF00E5FF),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const Text(
-                        '재생의학센터',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 3,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Regenerative Medicine Center',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const Divider(
-                          color: Color(0xFF00E5FF), thickness: 0.5, height: 30),
-                      const Text(
-                        'RMC Virtual Lab',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      const Text(
-                        'Regenerative Medicine Center · Cell Lab',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-                      // 입력 폼
-                      _RegisterForm(),
-                      const SizedBox(height: 16),
-                      // 관리자 버튼
-                      TextButton(
-                        onPressed: () =>
-                            _showAdminLogin(context),
-                        child: const Text(
-                          '관리자 로그인',
-                          style: TextStyle(
-                              color: Color(0xFF00E5FF), fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -247,6 +266,7 @@ class _RegisterForm extends StatefulWidget {
 class _RegisterFormState extends State<_RegisterForm> {
   final _nameCtrl = TextEditingController();
   final _affCtrl = TextEditingController();
+  final _empIdCtrl = TextEditingController();   // 사번
   UserRole _selectedRole = UserRole.researcher;
   bool _isLoading = false;
   String? _pendingUserId;
@@ -323,6 +343,7 @@ class _RegisterFormState extends State<_RegisterForm> {
       setState(() {
         _affCtrl.text = saved['affiliation'] ?? '';
         _nameCtrl.text = saved['name'] ?? '';
+        _empIdCtrl.text = saved['employeeId'] ?? '';
         _selectedRole =
             _roleMap[saved['role']] ?? UserRole.researcher;
         _saveInfo = true; // 이미 저장된 상태 → 체크 ON
@@ -336,6 +357,7 @@ class _RegisterFormState extends State<_RegisterForm> {
   void dispose() {
     _nameCtrl.dispose();
     _affCtrl.dispose();
+    _empIdCtrl.dispose();
     super.dispose();
   }
 
@@ -354,6 +376,7 @@ class _RegisterFormState extends State<_RegisterForm> {
       await auth.saveResearcherInfo(
         name: _nameCtrl.text.trim(),
         affiliation: _affCtrl.text.trim(),
+        employeeId: _empIdCtrl.text.trim(),
         role: _roleToStr[_selectedRole] ?? 'researcher',
       );
     } else {
@@ -363,6 +386,7 @@ class _RegisterFormState extends State<_RegisterForm> {
     final (userId, isExisting) = await auth.registerUser(
       name: _nameCtrl.text.trim(),
       affiliation: _affCtrl.text.trim(),
+      employeeId: _empIdCtrl.text.trim(),
       role: _selectedRole,
     );
 
@@ -453,7 +477,7 @@ class _RegisterFormState extends State<_RegisterForm> {
 
   Widget _buildFormView() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
@@ -501,13 +525,15 @@ class _RegisterFormState extends State<_RegisterForm> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           // ─── 소속 / 성함 입력 ───
           _buildTextField(_affCtrl, '소속', Icons.business),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           _buildTextField(_nameCtrl, '성함', Icons.person),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          _buildTextField(_empIdCtrl, '사번 (선택)', Icons.badge_outlined),
+          const SizedBox(height: 8),
 
           // ─── 직위 선택 ───
           const Text('직위',
@@ -529,7 +555,7 @@ class _RegisterFormState extends State<_RegisterForm> {
               );
             }).toList(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           // ─── ★ 실험실 정보 저장 체크박스 ───
           GestureDetector(
@@ -614,7 +640,7 @@ class _RegisterFormState extends State<_RegisterForm> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
 
           // ─── 입장 신청 버튼 ───
           SizedBox(

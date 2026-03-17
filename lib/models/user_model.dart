@@ -9,6 +9,7 @@ class UserProfile {
   final String id;
   final String name;
   final String affiliation;
+  final String employeeId;   // 사번 (선택)
   final UserRole role;
   final UserStatus status;
   final DateTime createdAt;
@@ -17,6 +18,7 @@ class UserProfile {
     required this.id,
     required this.name,
     required this.affiliation,
+    this.employeeId = '',
     required this.role,
     required this.status,
     required this.createdAt,
@@ -39,6 +41,7 @@ class UserProfile {
         'id': id,
         'name': name,
         'affiliation': affiliation,
+        'employeeId': employeeId,
         'role': role.index,
         'status': status.index,
         'createdAt': createdAt.toIso8601String(),
@@ -48,6 +51,7 @@ class UserProfile {
         id: json['id'] as String,
         name: json['name'] as String,
         affiliation: json['affiliation'] as String,
+        employeeId: json['employeeId'] as String? ?? '',
         role: UserRole.values[json['role'] as int],
         status: UserStatus.values[json['status'] as int],
         createdAt: DateTime.parse(json['createdAt'] as String),

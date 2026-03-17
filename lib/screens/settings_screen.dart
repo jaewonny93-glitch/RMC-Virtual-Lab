@@ -329,6 +329,10 @@ class SettingsScreen extends StatelessWidget {
                 Text(user?.affiliation ?? '-',
                     style: const TextStyle(
                         color: Colors.white54, fontSize: 13)),
+                if (user?.employeeId != null && user!.employeeId.isNotEmpty)
+                  Text('사번: ${user.employeeId}',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 11)),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(

@@ -85,6 +85,7 @@ class AuthService extends ChangeNotifier {
   Future<(String, bool)> registerUser({
     required String name,
     required String affiliation,
+    String employeeId = '',
     required UserRole role,
   }) async {
     await loadUsers(); // 최신 상태 로드
@@ -92,7 +93,6 @@ class AuthService extends ChangeNotifier {
     // ① 이미 동일 이름+소속으로 등록된 사용자 확인
     final existing = findExistingUser(name: name, affiliation: affiliation);
     if (existing != null) {
-      // 기존 신청 ID 저장 후 반환 (isExisting = true)
       await savePendingUserId(existing.id);
       return (existing.id, true);
     }
@@ -103,6 +103,7 @@ class AuthService extends ChangeNotifier {
       id: id,
       name: name,
       affiliation: affiliation,
+      employeeId: employeeId,
       role: role,
       status: UserStatus.pending,
       createdAt: DateTime.now(),
@@ -131,6 +132,7 @@ class AuthService extends ChangeNotifier {
       id: user.id,
       name: user.name,
       affiliation: user.affiliation,
+      employeeId: user.employeeId,
       role: user.role,
       status: UserStatus.approved,
       createdAt: user.createdAt,
@@ -183,11 +185,13 @@ class AuthService extends ChangeNotifier {
   Future<void> saveResearcherInfo({
     required String name,
     required String affiliation,
+    String employeeId = '',
     required String role,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('saved_name', name);
     await prefs.setString('saved_affiliation', affiliation);
+    await prefs.setString('saved_employee_id', employeeId);
     await prefs.setString('saved_role', role);
     await prefs.setBool('info_saved', true);
   }
@@ -200,6 +204,7 @@ class AuthService extends ChangeNotifier {
     return {
       'name': prefs.getString('saved_name') ?? '',
       'affiliation': prefs.getString('saved_affiliation') ?? '',
+      'employeeId': prefs.getString('saved_employee_id') ?? '',
       'role': prefs.getString('saved_role') ?? 'researcher',
     };
   }
@@ -209,6 +214,7 @@ class AuthService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('saved_name');
     await prefs.remove('saved_affiliation');
+    await prefs.remove('saved_employee_id');
     await prefs.remove('saved_role');
     await prefs.setBool('info_saved', false);
   }
