@@ -24,20 +24,33 @@ class _GraphScreenState extends State<GraphScreen> {
     final cell = CellDatabase.findById(session.cellTypeId!);
     if (cell == null) return _buildEmptyState();
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF0A1628), Color(0xFF050D1A)],
+    return Scaffold(
+      backgroundColor: const Color(0xFF050D1A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D1B2A),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          '성장 그래프',
+          style: TextStyle(color: Color(0xFF00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF0A1628), Color(0xFF050D1A)],
+              ),
             ),
           ),
-        ),
-        SafeArea(
-          child: SingleChildScrollView(
+          SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,33 +68,50 @@ class _GraphScreenState extends State<GraphScreen> {
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0A1628), Color(0xFF050D1A)],
+    return Scaffold(
+      backgroundColor: const Color(0xFF050D1A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D1B2A),
+        elevation: 0,
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ),
+        title: const Text(
+          '성장 그래프',
+          style: TextStyle(color: Color(0xFF00E5FF), fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.show_chart, color: Colors.white12, size: 80),
-            SizedBox(height: 16),
-            Text('배양 중인 세포가 없습니다',
-                style: TextStyle(color: Colors.white38, fontSize: 16)),
-            SizedBox(height: 8),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0A1628), Color(0xFF050D1A)],
+          ),
+        ),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.show_chart, color: Colors.white12, size: 80),
+              SizedBox(height: 16),
+              Text('배양 중인 세포가 없습니다',
+                  style: TextStyle(color: Colors.white38, fontSize: 16)),
+              SizedBox(height: 8),
             Text('Lab 탭에서 세포 배양을 시작하세요',
                 style: TextStyle(color: Colors.white24, fontSize: 13)),
           ],
         ),
+      ),
       ),
     );
   }
