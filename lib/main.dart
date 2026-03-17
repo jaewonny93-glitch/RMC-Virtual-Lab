@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'models/user_model.dart';
 import 'models/lab_model.dart';
 import 'services/auth_service.dart';
-import 'services/update_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/main_screen.dart';
 
@@ -24,7 +23,6 @@ class VirtualCellLabApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AppState()..loadData()),
         ChangeNotifierProvider(create: (_) => AuthService()..loadUsers()),
         ChangeNotifierProvider(create: (_) => ExperimentSession()),
-        ChangeNotifierProvider(create: (_) => UpdateService()..initialize()),
       ],
       child: MaterialApp(
         title: 'RMC Virtual Lab',
