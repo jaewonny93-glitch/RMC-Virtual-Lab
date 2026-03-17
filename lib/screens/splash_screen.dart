@@ -323,7 +323,7 @@ class _RegisterFormState extends State<_RegisterForm> {
           if (mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const MainScreen()),
+              MaterialPageRoute(builder: (_) => MainScreen()),
             );
           }
           return;
@@ -399,7 +399,7 @@ class _RegisterFormState extends State<_RegisterForm> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MainScreen()),
+          MaterialPageRoute(builder: (_) => MainScreen()),
         );
       }
       return;
@@ -437,7 +437,7 @@ class _RegisterFormState extends State<_RegisterForm> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MainScreen()),
+          MaterialPageRoute(builder: (_) => MainScreen()),
         );
       }
     } else if (user.status == UserStatus.rejected) {

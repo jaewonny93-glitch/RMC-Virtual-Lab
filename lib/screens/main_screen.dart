@@ -8,15 +8,27 @@ import 'data_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 
+// 어디서든 MainScreen 탭을 전환할 수 있는 GlobalKey
+final mainScreenKey = GlobalKey<_MainScreenState>();
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  // ignore: prefer_const_constructors_in_immutables
+  MainScreen({Key? key}) : super(key: key ?? mainScreenKey);
+
+  static void switchTab(int index) {
+    mainScreenKey.currentState?._switchTab(index);
+  }
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+
+  void _switchTab(int index) {
+    if (mounted) setState(() => _currentIndex = index);
+  }
 
   final List<Widget> _screens = [
     const HomeScreen(),

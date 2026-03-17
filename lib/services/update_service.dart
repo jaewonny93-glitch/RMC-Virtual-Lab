@@ -35,6 +35,7 @@ class UpdateService extends ChangeNotifier {
     try {
       final info = await PackageInfo.fromPlatform();
       _currentVersion = info.version;
+      notifyListeners();
 
       // 마지막 확인 시간 로드
       final prefs = await SharedPreferences.getInstance();
@@ -43,9 +44,9 @@ class UpdateService extends ChangeNotifier {
         _lastChecked = DateTime.tryParse(lastCheckedStr);
       }
 
-      // 24시간마다 자동 확인
+      // 앱 시작마다 확인 (단, 마지막 확인이 1시간 이내면 스킵)
       if (_lastChecked == null ||
-          DateTime.now().difference(_lastChecked!).inHours >= 24) {
+          DateTime.now().difference(_lastChecked!).inHours >= 1) {
         await checkForUpdates();
       }
     } catch (e) {
@@ -121,16 +122,24 @@ class UpdateService extends ChangeNotifier {
     }
   }
 
-  /// 웹: GitHub Pages 페이지 새로고침
-  /// 앱: APK 다운로드 링크 열기
+  /// 웹: 현재 페이지 새로고침 (캐시 무효화)
+  /// 앱: GitHub Releases 페이지 열기
   Future<void> performUpdate() async {
     if (kIsWeb) {
-      // 웹에서는 새로고침으로 최신 빌드 로드
-      await launchUrl(Uri.parse(githubPagesUrl),
-          mode: LaunchMode.externalApplication);
+      // 웹에서는 현재 URL을 강제 새로고침 → 최신 빌드 로드
+      await launchUrl(
+        Uri.parse(Uri.base.toString()),
+        mode: LaunchMode.externalApplication,
+      );
     } else if (_downloadUrl != null) {
       await launchUrl(Uri.parse(_downloadUrl!),
           mode: LaunchMode.externalApplication);
+    } else {
+      // APK 없으면 Releases 페이지로
+      await launchUrl(
+        Uri.parse('https://github.com/$githubOwner/$githubRepo/releases/latest'),
+        mode: LaunchMode.externalApplication,
+      );
     }
   }
 

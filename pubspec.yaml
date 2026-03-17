@@ -2,6 +2,13 @@ name: rmc_virtual_lab
 description: RMC Virtual Lab - 분당서울대학교병원 재생의학센터 가상 세포 배양 시뮬레이터
 publish_to: 'none'
 version: 1.0.0+1
+# 버전 규칙:
+#   major.minor.patch+build
+#   예) 1.2.3+4
+#   - major: 대규모 기능 변경
+#   - minor: 기능 추가
+#   - patch: 버그 수정
+#   - build: 빌드 번호 (릴리즈마다 +1)
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

@@ -148,6 +148,6 @@ class _AppEntryState extends State<_AppEntry> {
         ),
       );
     }
-    return _goMain ? const MainScreen() : const SplashScreen();
+    return _goMain ? MainScreen() : const SplashScreen();
   }
 }

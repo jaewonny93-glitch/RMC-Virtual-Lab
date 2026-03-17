@@ -138,7 +138,7 @@ class SettingsScreen extends StatelessWidget {
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1)),
-              if (svc.updateAvailable) ...[  
+              if (svc.updateAvailable) ...[
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -146,8 +146,9 @@ class SettingsScreen extends StatelessWidget {
                     color: Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text('업데이트 있음',
-                      style: TextStyle(color: Colors.orange, fontSize: 10)),
+                  child: const Text('새 버전 있음',
+                      style: TextStyle(color: Colors.orange, fontSize: 10,
+                          fontWeight: FontWeight.bold)),
                 ),
               ],
             ],
@@ -157,52 +158,94 @@ class SettingsScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF0D1B2A),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: svc.updateAvailable
+                  ? Colors.orange.withValues(alpha: 0.4)
+                  : Colors.white.withValues(alpha: 0.06),
+            ),
           ),
           child: Column(
             children: [
+              // ── 버전 상태 헤더 ──────────────────────────────
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
+                    // 아이콘
                     Container(
-                      width: 44, height: 44,
+                      width: 48, height: 48,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: svc.updateAvailable
-                            ? Colors.orange.withValues(alpha: 0.15)
-                            : Colors.green.withValues(alpha: 0.15),
-                        border: Border.all(
-                            color: svc.updateAvailable ? Colors.orange : Colors.greenAccent),
-                      ),
-                      child: Icon(
-                        svc.isChecking
-                            ? Icons.sync
+                        color: svc.isChecking
+                            ? const Color(0xFF00E5FF).withValues(alpha: 0.1)
                             : svc.updateAvailable
-                                ? Icons.system_update
-                                : Icons.check_circle,
-                        color: svc.updateAvailable ? Colors.orange : Colors.greenAccent,
-                        size: 22,
+                                ? Colors.orange.withValues(alpha: 0.15)
+                                : Colors.green.withValues(alpha: 0.15),
+                        border: Border.all(
+                          color: svc.isChecking
+                              ? const Color(0xFF00E5FF)
+                              : svc.updateAvailable
+                                  ? Colors.orange
+                                  : Colors.greenAccent,
+                        ),
                       ),
+                      child: svc.isChecking
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Color(0xFF00E5FF)),
+                            )
+                          : Icon(
+                              svc.updateAvailable
+                                  ? Icons.system_update
+                                  : Icons.check_circle_outline,
+                              color: svc.updateAvailable
+                                  ? Colors.orange
+                                  : Colors.greenAccent,
+                              size: 24,
+                            ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
+                    // 버전 텍스트
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             svc.isChecking
-                                ? '업데이트 확인 중...'
+                                ? '최신 버전 확인 중...'
                                 : svc.updateAvailable
-                                    ? '새 버전 ${svc.latestVersion} 이용 가능'
-                                    : '최신 버전입니다',
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                    ? '새 버전 v${svc.latestVersion} 출시!'
+                                    : '최신 버전 사용 중',
+                            style: TextStyle(
+                                color: svc.updateAvailable
+                                    ? Colors.orange
+                                    : Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold),
                           ),
-                          Text(
-                            '현재 버전: v${svc.currentVersion ?? "-"}'
-                            '${svc.latestVersion != null ? "  →  최신: v${svc.latestVersion}" : ""}',
-                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              _VersionBadge(
+                                label: '현재',
+                                version: 'v${svc.currentVersion ?? "-"}',
+                                color: const Color(0xFF00E5FF),
+                              ),
+                              if (svc.updateAvailable &&
+                                  svc.latestVersion != null) ...[
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 6),
+                                  child: Icon(Icons.arrow_forward,
+                                      size: 12, color: Colors.white38),
+                                ),
+                                _VersionBadge(
+                                  label: '최신',
+                                  version: 'v${svc.latestVersion}',
+                                  color: Colors.orange,
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
@@ -210,66 +253,104 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              if (svc.updateAvailable) ...[  
-                Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
-                if (svc.releaseNotes != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    child: Text(
-                      svc.releaseNotes!,
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+
+              // ── 릴리즈 노트 (업데이트 있을 때) ────────────────
+              if (svc.updateAvailable && svc.releaseNotes != null) ...[
+                Divider(color: Colors.orange.withValues(alpha: 0.2), height: 1),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.black,
-                      minimumSize: const Size(double.infinity, 44),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.new_releases,
+                              size: 13, color: Colors.orange),
+                          SizedBox(width: 5),
+                          Text('업데이트 내용',
+                              style: TextStyle(
+                                  color: Colors.orange,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        svc.releaseNotes!,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12, height: 1.5),
+                        maxLines: 6,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.system_update, size: 18),
+                      label: const Text('지금 업데이트',
+                          style: TextStyle(fontWeight: FontWeight.bold,
+                              fontSize: 14)),
+                      onPressed: () => svc.performUpdate(),
                     ),
-                    icon: const Icon(Icons.system_update),
-                    label: const Text('업데이트',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () => svc.performUpdate(),
                   ),
                 ),
               ],
+
+              // ── 마지막 확인 시간 + 수동 확인 버튼 ────────────
               Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
               InkWell(
-                onTap: svc.isChecking ? null : () => svc.checkForUpdates(),
+                onTap: svc.isChecking ? null : () async {
+                  await svc.checkForUpdates();
+                  if (context.mounted && !svc.updateAvailable) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(children: [
+                          const Icon(Icons.check_circle,
+                              color: Colors.greenAccent, size: 16),
+                          const SizedBox(width: 8),
+                          Text('최신 버전입니다 (v${svc.currentVersion})'),
+                        ]),
+                        backgroundColor: const Color(0xFF0D1B2A),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
                 borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(12),
                     bottomRight: Radius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                      horizontal: 16, vertical: 13),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (svc.isChecking)
-                        const SizedBox(
-                          width: 14, height: 14,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Color(0xFF00E5FF)),
-                        )
-                      else
-                        const Icon(Icons.refresh,
-                            color: Color(0xFF00E5FF), size: 16),
+                      Icon(
+                        svc.isChecking ? Icons.sync : Icons.refresh,
+                        color: const Color(0xFF00E5FF),
+                        size: 15,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         svc.isChecking ? '확인 중...' : '업데이트 확인',
                         style: const TextStyle(
-                            color: Color(0xFF00E5FF), fontSize: 13),
+                            color: Color(0xFF00E5FF), fontSize: 12),
                       ),
-                      if (svc.lastChecked != null) ...[  
+                      if (svc.lastChecked != null) ...[
                         const SizedBox(width: 8),
                         Text(
-                          '(마지막 확인: ${_formatTime(svc.lastChecked!)})',
+                          '· ${_formatTime(svc.lastChecked!)}에 확인',
                           style: const TextStyle(
                               color: Colors.white24, fontSize: 10),
                         ),
@@ -696,6 +777,45 @@ class _SettingTile extends StatelessWidget {
             if (trailing != null) trailing!,
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  버전 뱃지 위젯
+// ─────────────────────────────────────────────────────────────
+class _VersionBadge extends StatelessWidget {
+  final String label;
+  final String version;
+  final Color color;
+  const _VersionBadge(
+      {required this.label, required this.version, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  color: color.withValues(alpha: 0.7),
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(width: 3),
+          Text(version,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }

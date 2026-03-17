@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import '../models/user_model.dart';
 import '../models/cell_model.dart';
 
@@ -274,22 +277,69 @@ class _ExperimentNoteDialogState extends State<_ExperimentNoteDialog> {
       _exported = false;
     });
     try {
+      // 렌더링 완료 대기 (충분한 시간 부여)
+      await Future.delayed(const Duration(milliseconds: 500));
+
       final boundary = _noteKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
       if (boundary == null) {
         setState(() => _exporting = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('렌더링 준비 중입니다. 잠시 후 다시 시도해주세요.'),
+                backgroundColor: Colors.orange),
+          );
+        }
         return;
       }
-      final image = await boundary.toImage(pixelRatio: 2.0);
+
+      // 픽셀비율 3.0으로 고해상도 캡처
+      final image = await boundary.toImage(pixelRatio: 3.0);
       final byteData =
           await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         setState(() => _exporting = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('이미지 생성 실패. 다시 시도해주세요.'),
+                backgroundColor: Colors.red),
+          );
+        }
         return;
       }
-      if (kDebugMode) {
-        debugPrint('Note export: ${byteData.lengthInBytes} bytes');
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final cellName = widget.record.cellTypeName
+          .replaceAll(RegExp(r'[^\w가-힣]'), '_');
+      final fileName =
+          'rmc_note_${cellName}_${DateTime.now().millisecondsSinceEpoch}.png';
+
+      // 웹: Blob URL → anchor 다운로드 방식 (iOS Safari 호환 포함)
+      final blob = html.Blob([pngBytes], 'image/png');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      // 방법 1: anchor click (Chrome/Android 웹 브라우저)
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..style.display = 'none';
+      html.document.body!.children.add(anchor);
+      anchor.click();
+
+      // 방법 2: iOS Safari - window.open fallback (download attribute 미지원 시)
+      await Future.delayed(const Duration(milliseconds: 300));
+      // iOS/Safari에서는 새 탭으로 이미지를 열어 저장 유도
+      if (html.window.navigator.userAgent.toLowerCase().contains('safari') &&
+          !html.window.navigator.userAgent.toLowerCase().contains('chrome')) {
+        html.window.open(url, '_blank');
       }
+
+      // URL 해제 및 anchor 제거
+      await Future.delayed(const Duration(milliseconds: 500));
+      html.Url.revokeObjectUrl(url);
+      anchor.remove();
+
       setState(() {
         _exporting = false;
         _exported = true;
@@ -298,7 +348,9 @@ class _ExperimentNoteDialogState extends State<_ExperimentNoteDialog> {
       setState(() => _exporting = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('내보내기 실패: $e'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text('내보내기 실패: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
@@ -355,7 +407,7 @@ class _ExperimentNoteDialogState extends State<_ExperimentNoteDialog> {
                     Icon(Icons.check_circle,
                         color: Colors.tealAccent, size: 16),
                     SizedBox(width: 6),
-                    Text('실험 노트가 캡처되었습니다.',
+                    Text('PNG 파일이 다운로드됐습니다.',
                         style: TextStyle(
                             color: Colors.tealAccent, fontSize: 12)),
                   ],

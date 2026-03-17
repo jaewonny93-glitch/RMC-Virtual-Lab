@@ -194,7 +194,7 @@ class _IncubatorScreenState extends State<IncubatorScreen>
               session.reset();
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (_) => const MainScreen()),
+                MaterialPageRoute(builder: (_) => MainScreen()),
                 (route) => false,
               );
             },
@@ -562,7 +562,7 @@ class _IncubatorScreenState extends State<IncubatorScreen>
             icon: const Icon(Icons.home, color: Colors.white54),
             onPressed: () => Navigator.pushAndRemoveUntil(
               context,
-              MaterialPageRoute(builder: (_) => const MainScreen()),
+              MaterialPageRoute(builder: (_) => MainScreen()),
               (route) => false,
             ),
           ),
@@ -828,11 +828,24 @@ class _IncubatorScreenState extends State<IncubatorScreen>
                 ),
                 icon: const Icon(Icons.show_chart, size: 18),
                 label: const Text('그래프'),
-                onPressed: () => Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MainScreen()),
-                  (route) => false,
-                ),
+                onPressed: () {
+                  // MainScreen이 스택에 남아있으면 pop으로 돌아가면서 탭 전환
+                  // 아니면 새 MainScreen으로 이동
+                  final nav = Navigator.of(context);
+                  // Graph 탭(index 2)으로 전환 후 루트까지 pop
+                  if (mainScreenKey.currentState != null) {
+                    MainScreen.switchTab(2);
+                    nav.popUntil((route) => route.isFirst);
+                  } else {
+                    nav.pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => MainScreen()),
+                      (route) => false,
+                    );
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      MainScreen.switchTab(2);
+                    });
+                  }
+                },
               ),
             ),
             const SizedBox(width: 10),
@@ -847,7 +860,7 @@ class _IncubatorScreenState extends State<IncubatorScreen>
                 label: const Text('홈'),
                 onPressed: () => Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (_) => const MainScreen()),
+                  MaterialPageRoute(builder: (_) => MainScreen()),
                   (route) => false,
                 ),
               ),
