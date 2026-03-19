@@ -17,7 +17,7 @@ class _VivariumScreenState extends State<VivariumScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -39,6 +39,7 @@ class _VivariumScreenState extends State<VivariumScreen>
             unselectedLabelColor: Colors.white38,
             tabs: const [
               Tab(text: '🐾 사육 중'),
+              Tab(text: '🐣 번식'),
               Tab(text: '💀 폐사'),
             ],
           ),
@@ -48,6 +49,7 @@ class _VivariumScreenState extends State<VivariumScreen>
             controller: _tab,
             children: const [
               _AliveAnimalsTab(),
+              _BreedingTab(),
               _DeadAnimalsTab(),
             ],
           ),
@@ -280,6 +282,16 @@ class _AnimalCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
+                      // 성별 배지
+                      Text(
+                        animal.gender == AnimalGender.male ? '♂' : '♀',
+                        style: TextStyle(
+                          color: animal.gender == AnimalGender.male ? Colors.lightBlue : Colors.pinkAccent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
@@ -304,6 +316,43 @@ class _AnimalCard extends StatelessWidget {
                           ),
                           child: Text('🧬 ${gene.symbol}',
                               style: const TextStyle(color: Colors.purpleAccent, fontSize: 9)),
+                        ),
+                      ],
+                      // 임신 배지
+                      if (animal.pregnancyStatus == PregnancyStatus.pregnant) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.pink.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('🤰임신중',
+                              style: TextStyle(color: Colors.pinkAccent, fontSize: 9)),
+                        ),
+                      ],
+                      if (animal.pregnancyStatus == PregnancyStatus.nursing) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('🍼수유중',
+                              style: TextStyle(color: Colors.orangeAccent, fontSize: 9)),
+                        ),
+                      ],
+                      if (animal.isOffspring) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('🐣새끼',
+                              style: TextStyle(color: Colors.tealAccent, fontSize: 9)),
                         ),
                       ],
                     ],
@@ -369,6 +418,587 @@ class _AnimalCard extends StatelessWidget {
       case AnimalStatus.critical: return '위험';
       case AnimalStatus.dead: return '폐사';
     }
+  }
+}
+
+// ── 폐사 동물 탭 ────────────────────────────────────────
+class _BreedingTab extends StatefulWidget {
+  const _BreedingTab();
+  @override
+  State<_BreedingTab> createState() => _BreedingTabState();
+}
+
+class _BreedingTabState extends State<_BreedingTab> {
+  AnimalInstance? _selectedFemale;
+  AnimalInstance? _selectedMale;
+
+  @override
+  Widget build(BuildContext context) {
+    final inVivo = context.watch<InVivoState>();
+    final alive = inVivo.aliveAnimals;
+    final females = alive.where((a) => a.gender == AnimalGender.female && a.pregnancyStatus == PregnancyStatus.none).toList();
+    final males = alive.where((a) => a.gender == AnimalGender.male).toList();
+    final pregnant = alive.where((a) => a.pregnancyStatus == PregnancyStatus.pregnant).toList();
+    final nursing = alive.where((a) => a.pregnancyStatus == PregnancyStatus.nursing).toList();
+    final offspring = alive.where((a) => a.isOffspring).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── 임신 유도 섹션 ──
+          _BreedingHeader(icon: '💑', title: '교배 및 임신 유도'),
+          const SizedBox(height: 12),
+
+          // 암컷 선택
+          const Text('암컷 선택', style: TextStyle(color: Colors.white60, fontSize: 12)),
+          const SizedBox(height: 6),
+          females.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('교배 가능한 암컷이 없습니다.\n(임신/수유 중이 아닌 암컷)',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
+                )
+              : SizedBox(
+                  height: 80,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: females.length,
+                    itemBuilder: (_, i) {
+                      final f = females[i];
+                      final sp = AnimalDatabase.findById(f.speciesId);
+                      final sel = _selectedFemale?.id == f.id;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedFemale = f),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.only(right: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: sel ? Colors.pink.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: sel ? Colors.pinkAccent : Colors.white24,
+                              width: sel ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('${sp?.iconEmoji ?? "🐭"}♀', style: const TextStyle(fontSize: 20)),
+                              const SizedBox(height: 4),
+                              Text(f.tag, style: TextStyle(
+                                  color: sel ? Colors.pinkAccent : Colors.white70,
+                                  fontSize: 10, fontWeight: FontWeight.bold)),
+                              Text('${f.ageInDays.toInt()}일령',
+                                  style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+          const SizedBox(height: 14),
+
+          // 수컷 선택
+          const Text('수컷 선택', style: TextStyle(color: Colors.white60, fontSize: 12)),
+          const SizedBox(height: 6),
+          males.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('수컷이 없습니다.',
+                      style: TextStyle(color: Colors.white38, fontSize: 11)),
+                )
+              : SizedBox(
+                  height: 80,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: males.length,
+                    itemBuilder: (_, i) {
+                      final m = males[i];
+                      final sp = AnimalDatabase.findById(m.speciesId);
+                      final sel = _selectedMale?.id == m.id;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedMale = m),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.only(right: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: sel ? Colors.blue.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: sel ? Colors.lightBlue : Colors.white24,
+                              width: sel ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('${sp?.iconEmoji ?? "🐭"}♂', style: const TextStyle(fontSize: 20)),
+                              const SizedBox(height: 4),
+                              Text(m.tag, style: TextStyle(
+                                  color: sel ? Colors.lightBlue : Colors.white70,
+                                  fontSize: 10, fontWeight: FontWeight.bold)),
+                              Text('${m.ageInDays.toInt()}일령',
+                                  style: const TextStyle(color: Colors.white38, fontSize: 9)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+          const SizedBox(height: 16),
+
+          // 교배 정보 미리보기
+          if (_selectedFemale != null && _selectedMale != null) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.pink.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.pinkAccent.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(children: [
+                        Text(AnimalDatabase.findById(_selectedFemale!.speciesId)?.iconEmoji ?? '🐭',
+                            style: const TextStyle(fontSize: 24)),
+                        Text('♀ ${_selectedFemale!.tag}',
+                            style: const TextStyle(color: Colors.pinkAccent, fontSize: 11)),
+                      ]),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('💑', style: TextStyle(fontSize: 24)),
+                      ),
+                      Column(children: [
+                        Text(AnimalDatabase.findById(_selectedMale!.speciesId)?.iconEmoji ?? '🐭',
+                            style: const TextStyle(fontSize: 24)),
+                        Text('♂ ${_selectedMale!.tag}',
+                            style: const TextStyle(color: Colors.lightBlue, fontSize: 11)),
+                      ]),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Builder(builder: (_) {
+                    final sp = AnimalDatabase.findById(_selectedFemale!.speciesId);
+                    if (sp == null) return const SizedBox();
+                    return Wrap(
+                      spacing: 8, runSpacing: 4,
+                      children: [
+                        _MiniInfoChip('임신기간', '${sp.gestationDays.toInt()}일'),
+                        _MiniInfoChip('예상 산자수', '${sp.litterSizeMin}~${sp.litterSizeMax}마리'),
+                        _MiniInfoChip('새끼 체중', '${sp.birthWeightG}g'),
+                      ],
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // 교배 유도 버튼
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: (_selectedFemale != null && _selectedMale != null)
+                  ? () => _induceMating(context, inVivo)
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: (_selectedFemale != null && _selectedMale != null)
+                    ? Colors.pink.shade700 : Colors.white12,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.favorite, color: Colors.white, size: 16),
+              label: const Text('임신 유도',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 12),
+
+          // ── 임신 중 동물 ──
+          _BreedingHeader(icon: '🤰', title: '임신 중 (${pregnant.length}마리)'),
+          const SizedBox(height: 8),
+          if (pregnant.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('임신 중인 동물이 없습니다', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            )
+          else
+            ...pregnant.map((a) => _PregnantAnimalCard(animal: a)),
+
+          const SizedBox(height: 16),
+
+          // ── 수유 중 동물 ──
+          _BreedingHeader(icon: '🍼', title: '수유 중 (${nursing.length}마리)'),
+          const SizedBox(height: 8),
+          if (nursing.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('수유 중인 동물이 없습니다', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            )
+          else
+            ...nursing.map((a) => _NursingAnimalCard(animal: a, inVivo: inVivo)),
+
+          const SizedBox(height: 16),
+
+          // ── 새끼 목록 ──
+          _BreedingHeader(icon: '🐣', title: '새끼 (${offspring.length}마리)'),
+          const SizedBox(height: 8),
+          if (offspring.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('새끼가 없습니다', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            )
+          else
+            ...offspring.map((a) => _OffspringCard(animal: a, inVivo: inVivo)),
+
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  void _induceMating(BuildContext context, InVivoState inVivo) {
+    final f = _selectedFemale!;
+    final m = _selectedMale!;
+
+    // 같은 종인지 확인
+    if (f.speciesId != m.speciesId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ 같은 종끼리만 교배가 가능합니다'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final error = inVivo.induceMating(f.id, m.id);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ $error'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final sp = AnimalDatabase.findById(f.speciesId);
+    setState(() {
+      _selectedFemale = null;
+      _selectedMale = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('🤰 임신 유도 성공! ${f.tag}이(가) 임신 상태가 되었습니다.\n'
+            '표준 임신기간: ${sp?.gestationDays.toInt()}일 후 출산 예정'),
+        backgroundColor: Colors.pink.shade700,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+}
+
+class _BreedingHeader extends StatelessWidget {
+  final String icon;
+  final String title;
+  const _BreedingHeader({required this.icon, required this.title});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(icon, style: const TextStyle(fontSize: 18)),
+        const SizedBox(width: 8),
+        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+      ],
+    );
+  }
+}
+
+class _MiniInfoChip extends StatelessWidget {
+  final String label;
+  final String value;
+  const _MiniInfoChip(this.label, this.value);
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text('$label: $value',
+          style: const TextStyle(color: Colors.white70, fontSize: 10)),
+    );
+  }
+}
+
+class _PregnantAnimalCard extends StatelessWidget {
+  final AnimalInstance animal;
+  const _PregnantAnimalCard({required this.animal});
+
+  @override
+  Widget build(BuildContext context) {
+    final sp = AnimalDatabase.findById(animal.speciesId);
+    final elapsed = animal.pregnancyElapsedDays;
+    final total = sp?.gestationDays ?? 21;
+    final progress = (elapsed / total).clamp(0.0, 1.0);
+    final remaining = (total - elapsed).clamp(0.0, total);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.pink.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.pinkAccent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(sp?.iconEmoji ?? '🐭', style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('${animal.tag} ♀',
+                    style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+              const Text('🤰 임신 중', style: TextStyle(color: Colors.pink, fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text('임신 경과: ${elapsed.toStringAsFixed(1)}일 / ${total.toInt()}일',
+                            style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                        const Spacer(),
+                        Text('출산까지 ${remaining.toStringAsFixed(1)}일',
+                            style: const TextStyle(color: Colors.pinkAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 8,
+                        backgroundColor: Colors.white12,
+                        valueColor: const AlwaysStoppedAnimation(Colors.pinkAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (sp != null) ...[
+            const SizedBox(height: 6),
+            Text('예상 산자수: ${sp.litterSizeMin}~${sp.litterSizeMax}마리',
+                style: const TextStyle(color: Colors.white38, fontSize: 10)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NursingAnimalCard extends StatelessWidget {
+  final AnimalInstance animal;
+  final InVivoState inVivo;
+  const _NursingAnimalCard({required this.animal, required this.inVivo});
+
+  @override
+  Widget build(BuildContext context) {
+    final sp = AnimalDatabase.findById(animal.speciesId);
+    final offspringCount = animal.offspringIds.length;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Text(sp?.iconEmoji ?? '🐭', style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${animal.tag} ♀',
+                    style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                Text('🍼 수유 중 · 새끼 ${offspringCount}마리',
+                    style: const TextStyle(color: Colors.white54, fontSize: 11)),
+              ],
+            ),
+          ),
+          // 수유 종료 버튼
+          OutlinedButton(
+            onPressed: () {
+              animal.pregnancyStatus = PregnancyStatus.none;
+              inVivo.notifyListeners();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('✅ 수유 기간이 종료되었습니다'), backgroundColor: Colors.green),
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.orangeAccent,
+              side: const BorderSide(color: Colors.orangeAccent),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            ),
+            child: const Text('수유 종료', style: TextStyle(fontSize: 11)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OffspringCard extends StatefulWidget {
+  final AnimalInstance animal;
+  final InVivoState inVivo;
+  const _OffspringCard({required this.animal, required this.inVivo});
+  @override
+  State<_OffspringCard> createState() => _OffspringCardState();
+}
+
+class _OffspringCardState extends State<_OffspringCard> {
+  @override
+  Widget build(BuildContext context) {
+    final sp = AnimalDatabase.findById(widget.animal.speciesId);
+    final cages = CageDatabase.cages.where((c) => c.suitableFor.contains(widget.animal.speciesId) || c.suitableFor.isEmpty).toList();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.teal.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Text(sp?.iconEmoji ?? '🐭', style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(widget.animal.tag,
+                        style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 6),
+                    Text(widget.animal.gender == AnimalGender.male ? '♂' : '♀',
+                        style: TextStyle(
+                            color: widget.animal.gender == AnimalGender.male ? Colors.lightBlue : Colors.pinkAccent,
+                            fontSize: 12)),
+                    const SizedBox(width: 4),
+                    const Text('🐣 새끼', style: TextStyle(color: Colors.tealAccent, fontSize: 9)),
+                  ],
+                ),
+                Text('${widget.animal.weightG.toStringAsFixed(1)}g · ${widget.animal.ageInDays.toStringAsFixed(0)}일령',
+                    style: const TextStyle(color: Colors.white38, fontSize: 10)),
+              ],
+            ),
+          ),
+          // 케이지 배치
+          if (widget.animal.cageId == null)
+            SizedBox(
+              width: 100,
+              child: ElevatedButton(
+                onPressed: cages.isEmpty ? null : () => _assignCage(context, cages),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal.shade700,
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                ),
+                child: const Text('케이지 배치', style: TextStyle(color: Colors.white, fontSize: 10)),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.teal.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                widget.animal.cageId!,
+                style: const TextStyle(color: Colors.tealAccent, fontSize: 10),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _assignCage(BuildContext context, List<CageType> cages) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0D1F0D),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('케이지 선택', style: TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+          ...cages.map((c) => ListTile(
+            leading: const Icon(Icons.home, color: Colors.tealAccent),
+            title: Text(c.name, style: const TextStyle(color: Colors.white)),
+            subtitle: Text(c.size, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            onTap: () {
+              Navigator.pop(ctx);
+              widget.inVivo.setCage(widget.animal.id, c.id);
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('✅ ${widget.animal.tag}이(가) ${c.name}에 배치되었습니다'),
+                  backgroundColor: Colors.teal.shade700,
+                ),
+              );
+            },
+          )),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 }
 

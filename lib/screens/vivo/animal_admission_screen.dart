@@ -68,15 +68,48 @@ class _RequestFormTab extends StatefulWidget {
   State<_RequestFormTab> createState() => _RequestFormTabState();
 }
 
+// 동물 카테고리 정의
+class _AnimalCategory {
+  final String label;
+  final String emoji;
+  final List<String> speciesIds;
+  const _AnimalCategory({required this.label, required this.emoji, required this.speciesIds});
+}
+
+const _animalCategories = [
+  _AnimalCategory(
+    label: '소동물',
+    emoji: '🐭',
+    speciesIds: ['mouse_c57bl6', 'mouse_balbc', 'mouse_nude', 'rat_sd', 'rat_wistar', 'guineapig'],
+  ),
+  _AnimalCategory(
+    label: '중형동물',
+    emoji: '🐰',
+    speciesIds: ['rabbit_nzw'],
+  ),
+  _AnimalCategory(
+    label: '대동물 & 기타',
+    emoji: '🐷',
+    speciesIds: ['minipig', 'zebrafish'],
+  ),
+];
+
 class _RequestFormTabState extends State<_RequestFormTab> {
+  int _categoryIndex = 0;
   AnimalSpecies? _selectedSpecies;
   int _count = 1;
+  AnimalGender _gender = AnimalGender.male;
   final _purposeCtrl = TextEditingController();
 
   @override
   void dispose() {
     _purposeCtrl.dispose();
     super.dispose();
+  }
+
+  List<AnimalSpecies> get _speciesInCategory {
+    final ids = _animalCategories[_categoryIndex].speciesIds;
+    return AnimalDatabase.species.where((s) => ids.contains(s.id)).toList();
   }
 
   @override
@@ -86,13 +119,61 @@ class _RequestFormTabState extends State<_RequestFormTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 헤더
           _SectionHeader(icon: Icons.pets, title: '실험동물 입고 신청'),
           const SizedBox(height: 16),
 
+          // 카테고리 탭
+          const Text('동물 분류', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(_animalCategories.length, (i) {
+              final cat = _animalCategories[i];
+              final sel = _categoryIndex == i;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _categoryIndex = i;
+                    _selectedSpecies = null;
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: sel
+                          ? Colors.green.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: sel ? Colors.greenAccent : Colors.white24,
+                        width: sel ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(cat.emoji, style: const TextStyle(fontSize: 20)),
+                        const SizedBox(height: 4),
+                        Text(
+                          cat.label,
+                          style: TextStyle(
+                            color: sel ? Colors.greenAccent : Colors.white54,
+                            fontSize: 10,
+                            fontWeight: sel ? FontWeight.bold : FontWeight.normal,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+
+          const SizedBox(height: 16),
+
           // 동물 종류 선택
-          const Text('동물 종류 선택',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const Text('동물 종류 선택', style: TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 10),
           GridView.builder(
             shrinkWrap: true,
@@ -101,11 +182,11 @@ class _RequestFormTabState extends State<_RequestFormTab> {
               crossAxisCount: 3,
               mainAxisSpacing: 8,
               crossAxisSpacing: 8,
-              childAspectRatio: 1.1,
+              childAspectRatio: 0.95,
             ),
-            itemCount: AnimalDatabase.species.length,
+            itemCount: _speciesInCategory.length,
             itemBuilder: (_, i) {
-              final sp = AnimalDatabase.species[i];
+              final sp = _speciesInCategory[i];
               final selected = _selectedSpecies?.id == sp.id;
               return GestureDetector(
                 onTap: () => setState(() => _selectedSpecies = sp),
@@ -117,27 +198,30 @@ class _RequestFormTabState extends State<_RequestFormTab> {
                         : Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: selected
-                          ? Colors.greenAccent
-                          : Colors.white24,
+                      color: selected ? Colors.greenAccent : Colors.white24,
                       width: selected ? 1.5 : 1,
                     ),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(sp.iconEmoji,
-                          style: const TextStyle(fontSize: 26)),
+                      Text(sp.iconEmoji, style: const TextStyle(fontSize: 24)),
                       const SizedBox(height: 4),
                       Text(
                         sp.name.split(' ').first,
                         style: TextStyle(
                           color: selected ? Colors.greenAccent : Colors.white70,
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                         ),
                         textAlign: TextAlign.center,
                       ),
+                      if (sp.strain.isNotEmpty)
+                        Text(
+                          sp.strain.length > 8 ? '${sp.strain.substring(0, 8)}..' : sp.strain,
+                          style: const TextStyle(color: Colors.white38, fontSize: 8),
+                          textAlign: TextAlign.center,
+                        ),
                     ],
                   ),
                 ),
@@ -145,11 +229,82 @@ class _RequestFormTabState extends State<_RequestFormTab> {
             },
           ),
 
-          // 선택된 동물 정보
+          // 선택된 동물 상세 정보
           if (_selectedSpecies != null) ...[
             const SizedBox(height: 16),
             _SpeciesInfoCard(species: _selectedSpecies!),
           ],
+
+          const SizedBox(height: 20),
+
+          // 성별 선택 (신규)
+          _SectionHeader(icon: Icons.people, title: '성별 선택'),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _gender = AnimalGender.male),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _gender == AnimalGender.male
+                          ? Colors.blue.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _gender == AnimalGender.male ? Colors.blue : Colors.white24,
+                        width: _gender == AnimalGender.male ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('♂', style: TextStyle(fontSize: 24, color: Colors.blue)),
+                        const SizedBox(height: 4),
+                        Text('수컷',
+                            style: TextStyle(
+                                color: _gender == AnimalGender.male ? Colors.blue : Colors.white54,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _gender = AnimalGender.female),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _gender == AnimalGender.female
+                          ? Colors.pink.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _gender == AnimalGender.female ? Colors.pinkAccent : Colors.white24,
+                        width: _gender == AnimalGender.female ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text('♀', style: TextStyle(fontSize: 24, color: Colors.pinkAccent)),
+                        const SizedBox(height: 4),
+                        Text('암컷',
+                            style: TextStyle(
+                                color: _gender == AnimalGender.female ? Colors.pinkAccent : Colors.white54,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
 
           const SizedBox(height: 20),
 
@@ -200,6 +355,7 @@ class _RequestFormTabState extends State<_RequestFormTab> {
             controller: _purposeCtrl,
             maxLines: 3,
             style: const TextStyle(color: Colors.white),
+            onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText: '연구 목적 및 실험 내용을 간략히 기술해주세요',
               hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
@@ -211,13 +367,11 @@ class _RequestFormTabState extends State<_RequestFormTab> {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    const BorderSide(color: Colors.green, width: 0.5),
+                borderSide: const BorderSide(color: Colors.green, width: 0.5),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide:
-                    const BorderSide(color: Colors.greenAccent, width: 1.5),
+                borderSide: const BorderSide(color: Colors.greenAccent, width: 1.5),
               ),
             ),
           ),
@@ -227,21 +381,26 @@ class _RequestFormTabState extends State<_RequestFormTab> {
           // 제출 버튼
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton.icon(
               onPressed: _canSubmit ? _submit : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
+                backgroundColor: _canSubmit ? Colors.green.shade700 : Colors.white12,
                 disabledBackgroundColor: Colors.white12,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              icon: const Icon(Icons.send, color: Colors.white),
-              label: const Text('입고 신청 제출',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold)),
+              icon: Icon(
+                Icons.send,
+                color: _canSubmit ? Colors.white : Colors.white38,
+              ),
+              label: Text(
+                _canSubmit ? '입고 신청 제출' : '동물 종류와 연구 목적을 입력해주세요',
+                style: TextStyle(
+                  color: _canSubmit ? Colors.white : Colors.white38,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -271,6 +430,7 @@ class _RequestFormTabState extends State<_RequestFormTab> {
       count: _count,
       purpose: _purposeCtrl.text.trim(),
       requestDate: DateTime.now(),
+      gender: _gender,
     );
 
     context.read<InVivoState>().submitAdmissionRequest(req);
@@ -279,10 +439,12 @@ class _RequestFormTabState extends State<_RequestFormTab> {
       SnackBar(
         content: Row(
           children: [
-            const Text('✅ 입고 신청이 제출되었습니다. 관리자 승인을 기다려주세요.'),
+            Text('✅ 입고 신청이 제출되었습니다. 관리자 승인을 기다려주세요.\n'
+                '(${_selectedSpecies!.name} ${_gender == AnimalGender.male ? "수컷" : "암컷"} $_count마리)'),
           ],
         ),
         backgroundColor: Colors.green.shade700,
+        duration: const Duration(seconds: 3),
       ),
     );
 
@@ -290,6 +452,7 @@ class _RequestFormTabState extends State<_RequestFormTab> {
     setState(() {
       _selectedSpecies = null;
       _count = 1;
+      _gender = AnimalGender.male;
       _purposeCtrl.clear();
     });
   }
@@ -765,16 +928,19 @@ class _SpeciesInfoCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 6,
             children: [
-              _InfoChip(
-                  label: '수명',
-                  value: '${(species.lifespanDays / 30).toStringAsFixed(0)}개월'),
+              _InfoChip(label: '표준체중', value: species.avgWeightG >= 1000
+                  ? '${(species.avgWeightG / 1000).toStringAsFixed(1)}kg'
+                  : '${species.avgWeightG.toStringAsFixed(0)}g'),
+              _InfoChip(label: '수명', value: '${(species.lifespanDays / 30).toStringAsFixed(0)}개월'),
               _InfoChip(label: '케이지', value: species.cageSize),
-              _InfoChip(
-                  label: '최대수용', value: '${species.maxPerCage}마리/케이지'),
-              _InfoChip(
-                  label: '사료(일)', value: '${species.stdFeedGPerDay}g'),
-              _InfoChip(
-                  label: '음수(일)', value: '${species.stdWaterMlPerDay}mL'),
+              _InfoChip(label: '최대수용', value: '${species.maxPerCage}마리/케이지'),
+              _InfoChip(label: '사료(일)', value: '${species.stdFeedGPerDay}g'),
+              _InfoChip(label: '음수(일)', value: '${species.stdWaterMlPerDay}mL'),
+              if (species.gestationDays > 0)
+                _InfoChip(label: '임신기간', value: '${species.gestationDays.toInt()}일'),
+              if (species.gestationDays > 0)
+                _InfoChip(label: '산자수', value: '${species.litterSizeMin}~${species.litterSizeMax}마리'),
+              _InfoChip(label: '성성숙', value: '${species.sexualMaturityDays.toInt()}일령'),
             ],
           ),
         ],

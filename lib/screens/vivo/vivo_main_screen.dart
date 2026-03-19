@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/animal_model.dart';
 import '../../models/user_model.dart';
 import '../mode_select_screen.dart';
+import '../main_screen.dart';
 import 'animal_admission_screen.dart';
 import 'vivarium_screen.dart';
 import 'vivo_support_screens.dart';
@@ -26,12 +28,34 @@ class _VivoMainScreenState extends State<VivoMainScreen> {
     _conditionTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) context.read<InVivoState>().updateAllConditions();
     });
+    // 진입 시 필수 안내 다이얼로그 표시
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showGuideDialogIfNeeded();
+    });
   }
 
   @override
   void dispose() {
     _conditionTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _showGuideDialogIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now();
+    final todayKey = 'vivo_guide_dismissed_${today.year}_${today.month}_${today.day}';
+    final dismissed = prefs.getBool(todayKey) ?? false;
+    if (!dismissed && mounted) {
+      _showVivoGuideDialog(todayKey);
+    }
+  }
+
+  void _showVivoGuideDialog(String todayKey) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _VivoGuideDialog(todayKey: todayKey),
+    );
   }
 
   @override
@@ -101,6 +125,45 @@ class _VivoMainScreenState extends State<VivoMainScreen> {
           ],
         ),
         actions: [
+          // In Vitro 모드 전환 버튼
+          Tooltip(
+            message: 'In Vitro 세포 실험 모드로 전환',
+            child: InkWell(
+              onTap: () {
+                Navigator.pushReplacement(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (_, __, ___) => MainScreen(),
+                    transitionsBuilder: (_, anim, __, child) =>
+                        FadeTransition(opacity: anim, child: child),
+                    transitionDuration: const Duration(milliseconds: 600),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text('🔬', style: TextStyle(fontSize: 12)),
+                    SizedBox(width: 3),
+                    Text('In Vitro',
+                        style: TextStyle(
+                            color: Color(0xFF00E5FF),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ),
           // 살아있는 동물 수 표시
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -303,40 +366,150 @@ class _VivoHomeScreen extends StatelessWidget {
 
   Widget _buildEducationCards() {
     final items = [
-      {'icon': '📋', 'title': '동물 실험 윤리', 'sub': '3Rs 원칙: Replacement · Reduction · Refinement'},
-      {'icon': '🔬', 'title': '실험 동물 관리법', 'sub': '법적 요건, IACUC 승인 절차'},
-      {'icon': '💉', 'title': '투여 경로 및 방법', 'sub': 'IP, IV, SC, PO 투여법'},
-      {'icon': '🏥', 'title': '동물 복지 지침', 'sub': 'AAALAC 기준, 통증 관리'},
+      {
+        'icon': '📋',
+        'title': '동물 실험 윤리 (3Rs)',
+        'sub': '3Rs 원칙: Replacement · Reduction · Refinement',
+        'detail': '• Replacement: 가능한 경우 동물 대신 세포·컴퓨터 모델 활용\n'
+            '• Reduction: 최소한의 동물만 사용, 통계적 최적화\n'
+            '• Refinement: 고통·스트레스 최소화, 마취·진통제 사용\n'
+            '• 모든 실험은 IACUC(동물실험윤리위원회) 승인 필수',
+      },
+      {
+        'icon': '🔬',
+        'title': '실험동물 관리법',
+        'sub': '법적 요건, IACUC 승인 절차',
+        'detail': '• 실험동물에 관한 법률에 따른 동물실험시설 신고\n'
+            '• IACUC 심의·승인 후 실험 시작 가능\n'
+            '• 동물 입고 기록, 사용 기록, 폐기 기록 3년 보존\n'
+            '• 연 1회 IACUC 자체 점검 실시',
+      },
+      {
+        'icon': '💉',
+        'title': '투여 경로 및 방법',
+        'sub': 'IP, IV, SC, PO 투여법',
+        'detail': '• IP(복강내): 마우스 0.5mL, 랫트 2mL 이내\n'
+            '• IV(정맥내): 꼬리 정맥, 필요 시 가온처리\n'
+            '• SC(피하): 목덜미 피부 후 투여, 쉽고 저자극\n'
+            '• PO(경구): 존데 사용, 과도한 force 주의\n'
+            '• 투여량 계산: mg/kg 체중 기준',
+      },
+      {
+        'icon': '🏥',
+        'title': '동물 복지 지침',
+        'sub': 'AAALAC 기준, 통증 관리',
+        'detail': '• 온도 20~26°C, 습도 40~70%, 12h 명암주기\n'
+            '• 마우스/랫트: 최소 케이지 면적 준수\n'
+            '• 통증 4단계 평가(NRS): 즉시 처치 원칙\n'
+            '• 환경 강화(Enrichment): 터널·둥지 재료 제공\n'
+            '• 수술 후 진통제 투여 필수',
+      },
+      {
+        'icon': '🧬',
+        'title': '유전자 변형 동물 관리',
+        'sub': 'GMO 실험동물 특별 관리 지침',
+        'detail': '• LMO 법률에 따른 별도 신고·관리 필요\n'
+            '• CRISPR/AAV 처리 동물은 격리 사육 권장\n'
+            '• 유전자형 확인(genotyping) 실시 의무\n'
+            '• 폐기 시 고압증기멸균 처리 필수',
+      },
+      {
+        'icon': '🐣',
+        'title': '번식 및 군관리',
+        'sub': '교배·임신·산자 관리 기준',
+        'detail': '• 교배 전 건강 상태 확인 (체중·컨디션 점수)\n'
+            '• 임신 후 단독 사육 또는 소그룹 전환\n'
+            '• 분만 전·후 스트레스 최소화 (조용한 환경)\n'
+            '• 이유(weaning): 마우스 21~28일령, 랫트 21~28일령\n'
+            '• 성성숙 전 성별 분리 필수',
+      },
     ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.5,
-      children: items.map((e) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(e['icon']!, style: const TextStyle(fontSize: 22)),
-            const Spacer(),
-            Text(e['title']!,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(e['sub']!,
-                style: const TextStyle(color: Colors.white38, fontSize: 10),
-                maxLines: 2, overflow: TextOverflow.ellipsis),
-          ],
-        ),
+    return Column(
+      children: items.map((e) => _ExpandableEducCard(
+        icon: e['icon']!,
+        title: e['title']!,
+        sub: e['sub']!,
+        detail: e['detail']!,
       )).toList(),
+    );
+  }
+}
+
+// ── 확장 가능한 교육 카드 ────────────────────────────────
+class _ExpandableEducCard extends StatefulWidget {
+  final String icon;
+  final String title;
+  final String sub;
+  final String detail;
+  const _ExpandableEducCard({required this.icon, required this.title, required this.sub, required this.detail});
+  @override
+  State<_ExpandableEducCard> createState() => _ExpandableEducCardState();
+}
+
+class _ExpandableEducCardState extends State<_ExpandableEducCard> {
+  bool _expanded = false;
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: _expanded
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _expanded ? Colors.greenAccent.withValues(alpha: 0.4) : Colors.green.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Text(widget.icon, style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.title,
+                            style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(widget.sub,
+                            style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 300),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: _expanded ? Colors.greenAccent : Colors.white38,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            const Divider(color: Colors.white12, height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+              child: Text(
+                widget.detail,
+                style: const TextStyle(
+                    color: Colors.white70, fontSize: 12, height: 1.7),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -559,6 +732,236 @@ class _PendingRequestCard extends StatelessWidget {
           const Icon(Icons.hourglass_top,
               color: Colors.amberAccent, size: 18),
         ],
+      ),
+    );
+  }
+}
+
+// ── In Vivo 필수 안내 다이얼로그 ──────────────────────────
+class _VivoGuideDialog extends StatefulWidget {
+  final String todayKey;
+  const _VivoGuideDialog({required this.todayKey});
+  @override
+  State<_VivoGuideDialog> createState() => _VivoGuideDialogState();
+}
+
+class _VivoGuideDialogState extends State<_VivoGuideDialog> {
+  bool _dontShowToday = false;
+  int _currentPage = 0;
+
+  static const List<Map<String, dynamic>> _guides = [
+    {
+      'icon': '⚖️',
+      'title': '동물실험 윤리 원칙 (3Rs)',
+      'color': Color(0xFF1A3A2A),
+      'borderColor': Colors.greenAccent,
+      'items': [
+        '🔬 Replacement(대체): 가능한 경우 동물 대신 세포·컴퓨터 모델로 대체',
+        '📉 Reduction(감소): 필요 최소한의 동물 수만 사용',
+        '❤️ Refinement(개선): 고통·스트레스를 최소화하는 방법 사용',
+        '📋 모든 동물실험은 IACUC 승인을 받아야 합니다',
+      ],
+    },
+    {
+      'icon': '🏥',
+      'title': '동물 복지 및 관리 기준',
+      'color': Color(0xFF1A2A3A),
+      'borderColor': Color(0xFF00E5FF),
+      'items': [
+        '🌡️ 온도: 20~26°C, 습도: 40~70% 유지',
+        '💡 명암주기: 12시간 명/12시간 암 사이클 유지',
+        '🍽️ 사료·음수: 자유 섭취 원칙 (ad libitum)',
+        '🐾 케이지: 동물 복지법에 따른 최소 공간 보장',
+        '🏥 매일 동물 상태 관찰 및 기록 의무',
+      ],
+    },
+    {
+      'icon': '⚕️',
+      'title': '안락사 및 부검 지침',
+      'color': Color(0xFF2A1A1A),
+      'borderColor': Colors.redAccent,
+      'items': [
+        '💉 안락사: 승인된 방법 사용 (CO₂, 경추탈골 등)',
+        '📊 부검 전 실험 종료 보고서 작성 필수',
+        '🧪 조직 샘플: 적절한 고정·보관 방법 준수',
+        '🗑️ 사체 처리: 의료폐기물 규정에 따라 처리',
+        '⚠️ 고통이 명백한 동물은 즉시 안락사 실시',
+      ],
+    },
+    {
+      'icon': '📋',
+      'title': '기록 및 보고 의무',
+      'color': Color(0xFF1A1A2A),
+      'borderColor': Colors.purpleAccent,
+      'items': [
+        '📝 동물 입고부터 폐기까지 전 과정 기록 필수',
+        '🔢 개체 식별 시스템 (태그/마킹) 사용',
+        '📊 실험 데이터는 원본 그대로 보존',
+        '🏛️ 관련 기관 감사 시 모든 기록 제출 의무',
+        '📅 실험 종료 후 6개월 이상 기록 보존',
+      ],
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final guide = _guides[_currentPage];
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 520),
+        decoration: BoxDecoration(
+          color: guide['color'] as Color,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: (guide['borderColor'] as Color).withValues(alpha: 0.5),
+              width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: (guide['borderColor'] as Color).withValues(alpha: 0.2),
+              blurRadius: 20,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 헤더
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('${_currentPage + 1} / ${_guides.length}',
+                          style: TextStyle(
+                              color: (guide['borderColor'] as Color).withValues(alpha: 0.7),
+                              fontSize: 12)),
+                      const Text('⚠️ 필수 안내사항',
+                          style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(guide['icon'] as String,
+                      style: const TextStyle(fontSize: 36)),
+                  const SizedBox(height: 8),
+                  Text(guide['title'] as String,
+                      style: TextStyle(
+                          color: guide['borderColor'] as Color,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+            const Divider(color: Colors.white12, height: 1),
+            // 내용
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: (guide['items'] as List<String>).map((item) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(item,
+                              style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  height: 1.5)),
+                        ),
+                      ],
+                    ),
+                  )).toList(),
+                ),
+              ),
+            ),
+            // 페이지 인디케이터
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(_guides.length, (i) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: _currentPage == i ? 20 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: _currentPage == i
+                        ? (guide['borderColor'] as Color)
+                        : Colors.white24,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                )),
+              ),
+            ),
+            // 오늘 하루 읽지 않기 + 버튼
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _dontShowToday,
+                        onChanged: (v) => setState(() => _dontShowToday = v ?? false),
+                        activeColor: Colors.greenAccent,
+                        checkColor: Colors.black,
+                        side: const BorderSide(color: Colors.white38),
+                      ),
+                      const Text('오늘 하루 읽지 않기',
+                          style: TextStyle(color: Colors.white54, fontSize: 12)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (_currentPage > 0) ...[
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => setState(() => _currentPage--),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white54,
+                              side: const BorderSide(color: Colors.white24),
+                            ),
+                            child: const Text('이전'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (_dontShowToday) {
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.setBool(widget.todayKey, true);
+                            }
+                            if (mounted) Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _currentPage < _guides.length - 1
+                                ? Colors.white12
+                                : Colors.green.shade700,
+                          ),
+                          child: Text(
+                            _currentPage < _guides.length - 1 ? '다음 →' : '확인 및 시작',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

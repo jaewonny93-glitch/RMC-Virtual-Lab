@@ -29,6 +29,12 @@ class AnimalSpecies {
   // 케이지 요구사항
   final String cageSize;
   final int maxPerCage;
+  // 번식 관련 (새로 추가)
+  final double gestationDays;    // 표준 임신기간 (일)
+  final int litterSizeMin;       // 한배 새끼 최소 수
+  final int litterSizeMax;       // 한배 새끼 최대 수
+  final double birthWeightG;     // 새끼 출생 체중 (g)
+  final double sexualMaturityDays; // 성성숙 일령
 
   const AnimalSpecies({
     required this.id,
@@ -51,6 +57,11 @@ class AnimalSpecies {
     required this.feedStarveDays,
     required this.cageSize,
     required this.maxPerCage,
+    this.gestationDays = 21.0,
+    this.litterSizeMin = 1,
+    this.litterSizeMax = 8,
+    this.birthWeightG = 2.0,
+    this.sexualMaturityDays = 42.0,
   });
 }
 
@@ -77,6 +88,11 @@ class AnimalDatabase {
       feedStarveDays: 7.0,
       cageSize: 'Type II (표준)',
       maxPerCage: 5,
+      gestationDays: 19.5,
+      litterSizeMin: 6,
+      litterSizeMax: 12,
+      birthWeightG: 1.5,
+      sexualMaturityDays: 42,
     ),
     AnimalSpecies(
       id: 'mouse_balbc',
@@ -99,6 +115,11 @@ class AnimalDatabase {
       feedStarveDays: 7.0,
       cageSize: 'Type II (표준)',
       maxPerCage: 5,
+      gestationDays: 19.5,
+      litterSizeMin: 5,
+      litterSizeMax: 10,
+      birthWeightG: 1.5,
+      sexualMaturityDays: 42,
     ),
     AnimalSpecies(
       id: 'mouse_nude',
@@ -121,6 +142,11 @@ class AnimalDatabase {
       feedStarveDays: 6.0,
       cageSize: 'IVC (개별환기)',
       maxPerCage: 5,
+      gestationDays: 20.0,
+      litterSizeMin: 4,
+      litterSizeMax: 9,
+      birthWeightG: 1.4,
+      sexualMaturityDays: 42,
     ),
     AnimalSpecies(
       id: 'rat_sd',
@@ -143,6 +169,11 @@ class AnimalDatabase {
       feedStarveDays: 10.0,
       cageSize: 'Type IV (대형)',
       maxPerCage: 3,
+      gestationDays: 22.0,
+      litterSizeMin: 8,
+      litterSizeMax: 16,
+      birthWeightG: 6.0,
+      sexualMaturityDays: 65,
     ),
     AnimalSpecies(
       id: 'rat_wistar',
@@ -165,6 +196,11 @@ class AnimalDatabase {
       feedStarveDays: 10.0,
       cageSize: 'Type IV (대형)',
       maxPerCage: 3,
+      gestationDays: 22.0,
+      litterSizeMin: 7,
+      litterSizeMax: 14,
+      birthWeightG: 5.5,
+      sexualMaturityDays: 65,
     ),
     AnimalSpecies(
       id: 'rabbit_nzw',
@@ -187,6 +223,11 @@ class AnimalDatabase {
       feedStarveDays: 14.0,
       cageSize: 'Rabbit Cage (전용)',
       maxPerCage: 1,
+      gestationDays: 31.0,
+      litterSizeMin: 4,
+      litterSizeMax: 12,
+      birthWeightG: 60.0,
+      sexualMaturityDays: 180,
     ),
     AnimalSpecies(
       id: 'guineapig',
@@ -209,6 +250,11 @@ class AnimalDatabase {
       feedStarveDays: 7.0,
       cageSize: 'Type III (중형)',
       maxPerCage: 3,
+      gestationDays: 68.0,
+      litterSizeMin: 1,
+      litterSizeMax: 4,
+      birthWeightG: 100.0,
+      sexualMaturityDays: 55,
     ),
     AnimalSpecies(
       id: 'zebrafish',
@@ -231,6 +277,11 @@ class AnimalDatabase {
       feedStarveDays: 14.0,
       cageSize: 'Tank 3L (전용)',
       maxPerCage: 20,
+      gestationDays: 0.0, // 란생, 수정 후 3일이면 부화
+      litterSizeMin: 50,
+      litterSizeMax: 200,
+      birthWeightG: 0.001,
+      sexualMaturityDays: 90,
     ),
     AnimalSpecies(
       id: 'minipig',
@@ -253,6 +304,11 @@ class AnimalDatabase {
       feedStarveDays: 21.0,
       cageSize: 'Minipig Pen (전용)',
       maxPerCage: 2,
+      gestationDays: 114.0,
+      litterSizeMin: 4,
+      litterSizeMax: 10,
+      birthWeightG: 800.0,
+      sexualMaturityDays: 365,
     ),
   ];
 
@@ -483,6 +539,8 @@ class NecropsyDatabase {
 // ══════════════════════════════════════════════════
 enum AnimalStatus { healthy, stressed, sick, critical, dead }
 enum AnimalDeathCause { none, oxygenLow, oxygenHigh, dehydration, starvation, naturalDeath, euthanized, unknown }
+enum AnimalGender { male, female }
+enum PregnancyStatus { none, pregnant, nursing }
 
 class AnimalInstance {
   final String id;
@@ -518,6 +576,16 @@ class AnimalInstance {
   // 메모
   String notes;
 
+  // ── 성별 & 번식 (신규) ──────────────────────────
+  AnimalGender gender;
+  PregnancyStatus pregnancyStatus;
+  DateTime? pregnancyStartDate;    // 임신 시작 날짜
+  String? matingPartnerId;         // 교배 상대 ID
+  String? parentId;                // 어미 ID (새끼인 경우)
+  bool isOffspring;                // 새끼 여부
+  int litterIndex;                 // 동배 인덱스
+  List<String> offspringIds;       // 낳은 새끼 ID 목록
+
   AnimalInstance({
     required this.id,
     required this.speciesId,
@@ -542,10 +610,29 @@ class AnimalInstance {
     this.cageId,
     List<String>? enrichmentIds,
     this.notes = '',
+    this.gender = AnimalGender.male,
+    this.pregnancyStatus = PregnancyStatus.none,
+    this.pregnancyStartDate,
+    this.matingPartnerId,
+    this.parentId,
+    this.isOffspring = false,
+    this.litterIndex = 0,
+    List<String>? offspringIds,
   })  : necropsyOrgans = necropsyOrgans ?? [],
-        enrichmentIds = enrichmentIds ?? [];
+        enrichmentIds = enrichmentIds ?? [],
+        offspringIds = offspringIds ?? [];
 
   double get ageInDays => DateTime.now().difference(birthDate).inMinutes / (60 * 24).toDouble();
+
+  // 임신 경과일 (시뮬레이션: 실제 시간을 1:1000 배속으로)
+  double get pregnancyElapsedDays {
+    if (pregnancyStartDate == null) return 0;
+    return DateTime.now().difference(pregnancyStartDate!).inSeconds / 86400.0;
+  }
+
+  bool get isPregnant => pregnancyStatus == PregnancyStatus.pregnant;
+  bool get isMale => gender == AnimalGender.male;
+  bool get isFemale => gender == AnimalGender.female;
 
   // JSON 직렬화
   Map<String, dynamic> toJson() => {
@@ -568,6 +655,14 @@ class AnimalInstance {
     'cageId': cageId,
     'enrichmentIds': enrichmentIds,
     'notes': notes,
+    'gender': gender.index,
+    'pregnancyStatus': pregnancyStatus.index,
+    'pregnancyStartDate': pregnancyStartDate?.toIso8601String(),
+    'matingPartnerId': matingPartnerId,
+    'parentId': parentId,
+    'isOffspring': isOffspring,
+    'litterIndex': litterIndex,
+    'offspringIds': offspringIds,
   };
 
   factory AnimalInstance.fromJson(Map<String, dynamic> j) => AnimalInstance(
@@ -594,6 +689,14 @@ class AnimalInstance {
     cageId: j['cageId'] as String?,
     enrichmentIds: List<String>.from(j['enrichmentIds'] as List? ?? []),
     notes: j['notes'] as String? ?? '',
+    gender: AnimalGender.values[j['gender'] as int? ?? 0],
+    pregnancyStatus: PregnancyStatus.values[j['pregnancyStatus'] as int? ?? 0],
+    pregnancyStartDate: j['pregnancyStartDate'] != null ? DateTime.parse(j['pregnancyStartDate'] as String) : null,
+    matingPartnerId: j['matingPartnerId'] as String?,
+    parentId: j['parentId'] as String?,
+    isOffspring: j['isOffspring'] as bool? ?? false,
+    litterIndex: j['litterIndex'] as int? ?? 0,
+    offspringIds: List<String>.from(j['offspringIds'] as List? ?? []),
   );
 }
 
@@ -612,6 +715,7 @@ class AnimalAdmissionRequest {
   final DateTime requestDate;
   AnimalRequestStatus status;
   String? adminNote;
+  final AnimalGender gender; // 신규
 
   AnimalAdmissionRequest({
     required this.id,
@@ -623,6 +727,7 @@ class AnimalAdmissionRequest {
     required this.requestDate,
     this.status = AnimalRequestStatus.pending,
     this.adminNote,
+    this.gender = AnimalGender.male,
   });
 
   Map<String, dynamic> toJson() => {
@@ -630,6 +735,7 @@ class AnimalAdmissionRequest {
     'speciesId': speciesId, 'count': count, 'purpose': purpose,
     'requestDate': requestDate.toIso8601String(),
     'status': status.index, 'adminNote': adminNote,
+    'gender': gender.index,
   };
 
   factory AnimalAdmissionRequest.fromJson(Map<String, dynamic> j) =>
@@ -643,6 +749,7 @@ class AnimalAdmissionRequest {
       requestDate: DateTime.parse(j['requestDate'] as String),
       status: AnimalRequestStatus.values[j['status'] as int],
       adminNote: j['adminNote'] as String?,
+      gender: AnimalGender.values[j['gender'] as int? ?? 0],
     );
 }
 
@@ -661,7 +768,7 @@ class InVivoState extends ChangeNotifier {
       _requests.where((r) => r.status == AnimalRequestStatus.pending).toList();
 
   // 동물 추가 (입고 승인 후)
-  void addAnimals(String speciesId, int count, String userId) {
+  void addAnimals(String speciesId, int count, String userId, {AnimalGender gender = AnimalGender.male}) {
     final species = AnimalDatabase.findById(speciesId);
     if (species == null) return;
     final now = DateTime.now();
@@ -676,6 +783,7 @@ class InVivoState extends ChangeNotifier {
         lastFeedTime: now,
         lastWaterTime: now,
         oxygenPercent: 21.0,
+        gender: gender,
       );
       _animals.add(a);
     }
@@ -693,7 +801,7 @@ class InVivoState extends ChangeNotifier {
     final req = _requests.firstWhere((r) => r.id == reqId);
     req.status = AnimalRequestStatus.approved;
     req.adminNote = adminNote;
-    addAnimals(req.speciesId, req.count, req.userId);
+    addAnimals(req.speciesId, req.count, req.userId, gender: req.gender);
     notifyListeners();
   }
 
@@ -846,6 +954,7 @@ class InVivoState extends ChangeNotifier {
       _updateStatus(a);
     }
     if (changed) notifyListeners();
+    _checkPregnancies();
   }
 
   void _updateStatus(AnimalInstance a) {
@@ -854,5 +963,86 @@ class InVivoState extends ChangeNotifier {
     else if (a.conditionScore >= 60) a.status = AnimalStatus.stressed;
     else if (a.conditionScore >= 30) a.status = AnimalStatus.sick;
     else a.status = AnimalStatus.critical;
+  }
+
+  // ── 번식 관련 ──────────────────────────────────────
+
+  /// 임신 유도: 암컷 + 수컷 지정 → 임신 시작
+  String? induceMating(String femaleId, String maleId) {
+    final female = _animals.firstWhere((a) => a.id == femaleId, orElse: () => throw StateError('not found'));
+    final male = _animals.firstWhere((a) => a.id == maleId, orElse: () => throw StateError('not found'));
+    if (female.gender != AnimalGender.female) return '선택한 동물이 암컷이 아닙니다';
+    if (male.gender != AnimalGender.male) return '선택한 동물이 수컷이 아닙니다';
+    if (female.status == AnimalStatus.dead || male.status == AnimalStatus.dead) return '사망한 동물은 교배할 수 없습니다';
+    if (female.pregnancyStatus != PregnancyStatus.none) return '이미 임신 중이거나 수유 중입니다';
+
+    final species = AnimalDatabase.findById(female.speciesId);
+    if (species == null) return '종류 정보를 찾을 수 없습니다';
+
+    final ageInDays = female.ageInDays;
+    if (ageInDays < species.sexualMaturityDays) {
+      return '성성숙 전입니다 (${species.sexualMaturityDays.toInt()}일령 이후 가능)';
+    }
+
+    female.pregnancyStatus = PregnancyStatus.pregnant;
+    female.pregnancyStartDate = DateTime.now();
+    female.matingPartnerId = maleId;
+    notifyListeners();
+    return null; // 성공
+  }
+
+  /// 출산 처리 (임신기간 경과 시 자동 호출 또는 수동 호출)
+  List<AnimalInstance> giveBirth(String femaleId) {
+    final female = _animals.firstWhere((a) => a.id == femaleId, orElse: () => throw StateError('not found'));
+    if (female.pregnancyStatus != PregnancyStatus.pregnant) return [];
+    final species = AnimalDatabase.findById(female.speciesId);
+    if (species == null) return [];
+
+    final rng = Random();
+    final count = species.litterSizeMin + rng.nextInt(species.litterSizeMax - species.litterSizeMin + 1);
+    final now = DateTime.now();
+    final newborns = <AnimalInstance>[];
+
+    for (int i = 0; i < count; i++) {
+      final genderRandom = rng.nextBool() ? AnimalGender.male : AnimalGender.female;
+      final newborn = AnimalInstance(
+        id: '${now.millisecondsSinceEpoch}_offspring_${female.id}_$i',
+        speciesId: female.speciesId,
+        tag: '${species.name.split(' ').first}-새끼-${(_animals.length + i + 1).toString().padLeft(3, '0')}',
+        birthDate: now,
+        admitDate: now,
+        weightG: species.birthWeightG * (0.85 + rng.nextDouble() * 0.3), // ±15% 랜덤
+        lastFeedTime: now,
+        lastWaterTime: now,
+        oxygenPercent: female.oxygenPercent,
+        cageId: null, // 별도 케이지에 배치 필요
+        gender: genderRandom,
+        parentId: female.id,
+        isOffspring: true,
+        litterIndex: i,
+        notes: '${female.tag}의 새끼 (${genderRandom == AnimalGender.male ? "수컷" : "암컷"})',
+      );
+      newborns.add(newborn);
+      _animals.add(newborn);
+      female.offspringIds.add(newborn.id);
+    }
+
+    female.pregnancyStatus = PregnancyStatus.nursing;
+    female.pregnancyStartDate = null;
+    notifyListeners();
+    return newborns;
+  }
+
+  /// 임신 체크 (updateAllConditions에서 호출)
+  void _checkPregnancies() {
+    for (final a in _animals) {
+      if (a.pregnancyStatus != PregnancyStatus.pregnant) continue;
+      if (a.pregnancyStartDate == null) continue;
+      final species = AnimalDatabase.findById(a.speciesId);
+      if (species == null) continue;
+      if (a.pregnancyElapsedDays >= species.gestationDays) {
+        giveBirth(a.id);
+      }
+    }
   }
 }

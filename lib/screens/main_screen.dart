@@ -7,6 +7,7 @@ import 'library_screen.dart';
 import 'data_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
+import 'vivo/vivo_main_screen.dart';
 
 // 어디서든 MainScreen 탭을 전환할 수 있는 GlobalKey
 final mainScreenKey = GlobalKey<_MainScreenState>();
@@ -69,6 +70,45 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
         actions: [
+          // In Vivo 모드 전환 버튼
+          Tooltip(
+            message: 'In Vivo 동물실험 모드로 전환',
+            child: InkWell(
+              onTap: () {
+                Navigator.pushReplacement(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (_, __, ___) => const VivoMainScreen(),
+                    transitionsBuilder: (_, anim, __, child) =>
+                        FadeTransition(opacity: anim, child: child),
+                    transitionDuration: const Duration(milliseconds: 600),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text('🐭', style: TextStyle(fontSize: 14)),
+                    SizedBox(width: 4),
+                    Text('In Vivo',
+                        style: TextStyle(
+                            color: Colors.greenAccent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ),
           if (user != null)
             Padding(
               padding: const EdgeInsets.only(right: 12),
