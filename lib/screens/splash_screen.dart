@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import 'main_screen.dart';
+import 'mode_select_screen.dart';
 import 'admin_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -331,7 +332,7 @@ class _RegisterFormState extends State<_RegisterForm> {
           if (mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => MainScreen()),
+              MaterialPageRoute(builder: (_) => const ModeSelectScreen()),
             );
           }
           return;
@@ -408,7 +409,7 @@ class _RegisterFormState extends State<_RegisterForm> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => MainScreen()),
+          MaterialPageRoute(builder: (_) => const ModeSelectScreen()),
         );
       }
       return;
@@ -452,7 +453,7 @@ class _RegisterFormState extends State<_RegisterForm> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => MainScreen()),
+            MaterialPageRoute(builder: (_) => const ModeSelectScreen()),
           );
         }
       }
@@ -490,7 +491,7 @@ class _RegisterFormState extends State<_RegisterForm> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => MainScreen()),
+          MaterialPageRoute(builder: (_) => const ModeSelectScreen()),
         );
       }
     } else if (user.status == UserStatus.rejected) {

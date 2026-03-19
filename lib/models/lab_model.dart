@@ -286,6 +286,7 @@ class ExperimentSession extends ChangeNotifier {
   double? lastCellCountCellsPerML;
   double? lastCellCountViability;
   double? lastCellCountRemainingUL;
+  int passageNumber = 1; // P1 = 딥프리저 해동 직후, P2 = 첫 계대배양 후 ...
 
   void reset() {
     cellTypeId = null;
@@ -310,6 +311,7 @@ class ExperimentSession extends ChangeNotifier {
     lastCellCountCellsPerML = null;
     lastCellCountViability = null;
     lastCellCountRemainingUL = null;
+    passageNumber = 1;
     notifyListeners();
   }
 
@@ -358,6 +360,7 @@ class ExperimentSession extends ChangeNotifier {
     isMediumCorrect = s.mediumCorrect as bool;
     isInIncubator = true;
     incubatorStartTime = s.startTime as DateTime?;
+    passageNumber = (s.passageNumber as int?) ?? 1;
     // well 데이터 복원: totalCellCount를 seededWellCount로 균등 분배
     final count = (s.seededWellCount as int?) ?? 1;
     final total = (s.totalCellCount as double?) ?? 0.0;

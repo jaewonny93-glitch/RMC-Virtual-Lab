@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
+import '../models/animal_model.dart';
 import '../services/auth_service.dart';
 import 'splash_screen.dart';
 
@@ -19,7 +20,7 @@ class _AdminScreenState extends State<AdminScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AuthService>().loadUsers();
     });
@@ -101,6 +102,7 @@ class _AdminScreenState extends State<AdminScreen>
             Tab(text: '승인 대기'),
             Tab(text: '승인 완료'),
             Tab(text: '공지사항'),
+            Tab(text: '🐭 동물 현황'),
           ],
         ),
       ),
@@ -110,6 +112,7 @@ class _AdminScreenState extends State<AdminScreen>
           _PendingUsersTab(),
           _ApprovedUsersTab(),
           _NoticesTab(),
+          _VivoAdminTab(),
         ],
       ),
     );
@@ -534,6 +537,402 @@ class _NoticesTab extends StatelessWidget {
             child: const Text('등록',
                 style: TextStyle(color: Colors.black)),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════
+// In Vivo 동물 모니터링 탭 (관리자)
+// ══════════════════════════════════════════════════
+class _VivoAdminTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final inVivo = context.watch<InVivoState>();
+    final all = inVivo.animals;
+    final alive = inVivo.aliveAnimals;
+    final dead = inVivo.deadAnimals;
+    final pending = inVivo.pendingRequests;
+
+    // 연구자별 폐사 수 집계
+    final Map<String, _ResearcherStats> stats = {};
+    for (final req in inVivo.requests) {
+      if (!stats.containsKey(req.userId)) {
+        stats[req.userId] = _ResearcherStats(name: req.userName);
+      }
+    }
+    for (final a in all) {
+      // 어느 연구자의 동물인지 신청 기록에서 찾기
+      final reqMatch = inVivo.requests.where((r) =>
+          r.userId != '' &&
+          r.status == AnimalRequestStatus.approved &&
+          r.speciesId == a.speciesId).toList();
+      if (reqMatch.isNotEmpty) {
+        final userId = reqMatch.first.userId;
+        stats.putIfAbsent(userId, () => _ResearcherStats(name: reqMatch.first.userName));
+        if (a.status == AnimalStatus.dead) {
+          stats[userId]!.deadCount++;
+        } else {
+          stats[userId]!.aliveCount++;
+        }
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 전체 요약
+          _AdminSummaryRow(alive: alive.length, dead: dead.length, pending: pending.length),
+          const SizedBox(height: 16),
+
+          // 입고 신청 승인 대기
+          if (pending.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.pending_actions, color: Colors.amberAccent, size: 16),
+                const SizedBox(width: 6),
+                Text('입고 승인 대기 (${pending.length}건)',
+                    style: const TextStyle(
+                        color: Colors.amberAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...pending.map((r) => _AdminPendingCard(request: r)),
+            const SizedBox(height: 16),
+          ],
+
+          // 연구자별 폐사 현황
+          const Row(
+            children: [
+              Icon(Icons.people, color: Color(0xFF00E5FF), size: 16),
+              SizedBox(width: 6),
+              Text('연구자별 폐사 현황',
+                  style: TextStyle(
+                      color: Color(0xFF00E5FF),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (stats.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Center(
+                child: Text('등록된 동물이 없습니다.',
+                    style: TextStyle(color: Colors.white38)),
+              ),
+            )
+          else
+            ...stats.entries.map((e) => _ResearcherDeathCard(
+                  userId: e.key, stats: e.value)),
+
+          const SizedBox(height: 16),
+
+          // 전체 동물 목록
+          const Row(
+            children: [
+              Icon(Icons.pets, color: Colors.greenAccent, size: 16),
+              SizedBox(width: 6),
+              Text('전체 생존 동물 현황',
+                  style: TextStyle(
+                      color: Colors.greenAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (alive.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Center(
+                child: Text('생존 중인 동물이 없습니다.',
+                    style: TextStyle(color: Colors.white38)),
+              ),
+            )
+          else
+            ...alive.map((a) => _AdminAnimalTile(animal: a)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResearcherStats {
+  final String name;
+  int aliveCount = 0;
+  int deadCount = 0;
+  _ResearcherStats({required this.name});
+}
+
+class _AdminSummaryRow extends StatelessWidget {
+  final int alive;
+  final int dead;
+  final int pending;
+  const _AdminSummaryRow({required this.alive, required this.dead, required this.pending});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _AdminStatChip('생존', alive, Colors.greenAccent)),
+        const SizedBox(width: 8),
+        Expanded(child: _AdminStatChip('폐사', dead, Colors.redAccent)),
+        const SizedBox(width: 8),
+        Expanded(child: _AdminStatChip('입고 대기', pending, Colors.amberAccent)),
+      ],
+    );
+  }
+}
+
+class _AdminStatChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _AdminStatChip(this.label, this.count, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Text('$count', style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminPendingCard extends StatelessWidget {
+  final AnimalAdmissionRequest request;
+  const _AdminPendingCard({required this.request});
+
+  @override
+  Widget build(BuildContext context) {
+    final species = AnimalDatabase.findById(request.speciesId);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Text(species?.iconEmoji ?? '🐭', style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${request.userName} → ${species?.name ?? request.speciesId} ${request.count}마리',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                Text(request.purpose, style: const TextStyle(color: Colors.white38, fontSize: 10),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent, padding: EdgeInsets.zero),
+                onPressed: () => context.read<InVivoState>().rejectRequest(request.id, '관리자 거절'),
+                child: const Text('거절', style: TextStyle(fontSize: 11)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () => context.read<InVivoState>().approveRequest(request.id, null),
+                child: const Text('승인', style: TextStyle(color: Colors.white, fontSize: 11)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResearcherDeathCard extends StatelessWidget {
+  final String userId;
+  final _ResearcherStats stats;
+  const _ResearcherDeathCard({required this.userId, required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = stats.aliveCount + stats.deadCount;
+    final deathRate = total > 0 ? (stats.deadCount / total * 100) : 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: stats.deadCount > 3
+              ? Colors.redAccent.withValues(alpha: 0.3)
+              : Colors.white12,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.person, color: Colors.white54, size: 16),
+              const SizedBox(width: 6),
+              Text(stats.name,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13)),
+              if (stats.deadCount > 3) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text('⚠️ 폐사 주의',
+                      style: TextStyle(color: Colors.redAccent, fontSize: 9)),
+                ),
+              ],
+              const Spacer(),
+              Text('폐사율 ${deathRate.toStringAsFixed(0)}%',
+                  style: TextStyle(
+                      color: deathRate > 50 ? Colors.redAccent : Colors.white54,
+                      fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('생존',
+                            style: TextStyle(color: Colors.greenAccent, fontSize: 10)),
+                        Text('${stats.aliveCount}마리',
+                            style: const TextStyle(
+                                color: Colors.greenAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11)),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('폐사',
+                            style: TextStyle(color: Colors.redAccent, fontSize: 10)),
+                        Text('${stats.deadCount}마리',
+                            style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: 52,
+                height: 52,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CircularProgressIndicator(
+                      value: total > 0 ? stats.aliveCount / total : 0,
+                      strokeWidth: 5,
+                      backgroundColor: Colors.redAccent.withValues(alpha: 0.3),
+                      valueColor: const AlwaysStoppedAnimation(Colors.greenAccent),
+                    ),
+                    Center(
+                      child: Text(
+                        '${stats.aliveCount}/${total}',
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminAnimalTile extends StatelessWidget {
+  final AnimalInstance animal;
+  const _AdminAnimalTile({required this.animal});
+
+  @override
+  Widget build(BuildContext context) {
+    final species = AnimalDatabase.findById(animal.speciesId);
+    final statusColor = animal.status == AnimalStatus.healthy
+        ? Colors.greenAccent
+        : animal.status == AnimalStatus.stressed
+            ? Colors.amberAccent
+            : animal.status == AnimalStatus.sick
+                ? Colors.orangeAccent
+                : Colors.redAccent;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Text(species?.iconEmoji ?? '🐭',
+              style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(animal.tag,
+                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ),
+          Text('${animal.conditionScore.toStringAsFixed(0)}%',
+              style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12)),
         ],
       ),
     );

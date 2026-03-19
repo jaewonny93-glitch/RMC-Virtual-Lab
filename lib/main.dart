@@ -4,9 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'models/user_model.dart';
 import 'models/lab_model.dart';
+import 'models/animal_model.dart';
 import 'services/auth_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/main_screen.dart';
+import 'screens/mode_select_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +25,7 @@ class VirtualCellLabApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AppState()..loadData()),
         ChangeNotifierProvider(create: (_) => AuthService()..loadUsers()),
         ChangeNotifierProvider(create: (_) => ExperimentSession()),
+        ChangeNotifierProvider(create: (_) => InVivoState()),
       ],
       child: MaterialApp(
         title: 'RMC Virtual Lab',
@@ -146,6 +149,6 @@ class _AppEntryState extends State<_AppEntry> {
         ),
       );
     }
-    return _goMain ? MainScreen() : const SplashScreen();
+    return _goMain ? const ModeSelectScreen() : const SplashScreen();
   }
 }
